@@ -3,6 +3,12 @@
 [See a running version of examples/Main.elm](https://xarvh.github.io/elm-gamepad/).
 
 
+This package has Native dependencies, and therefore can't be published as a normal
+Elm package.
+To use it, download it and then install it using `elm_self_publish` from
+[NoRedInk/elm-ops-tooling](https://github.com/NoRedInk/elm-ops-tooling).
+
+
 Just replace [`AnimationFrame.diffs`](http://package.elm-lang.org/packages/elm-lang/animation-frame/1.0.0/AnimationFrame#diffs)
 with
 ```
