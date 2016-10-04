@@ -17,19 +17,21 @@ var _xarvh$elm_gamepad$Native_Gamepad = function() {
                     hasGamepads ? navigator.getGamepads() : [];
 
                 var gpOutList =
-                    new Array(gpInList.length);
+                    [];
 
-                for (var index = 0; index < gpInList.length; index++) {
+                for (var i = 0; i < gpInList.length; i++) {
 
                     var gpIn =
-                        gpInList[index];
+                        gpInList[i];
 
-                    gpOutList[index] = {
-                        index: index,
-                        axes: !gpIn ? [] : gpIn.axes,
-                        buttons: !gpIn ? [] : gpIn.buttons.map(function (b) { return [ b.pressed, b.value ]; }),
-                        connected: !gpIn ? false : gpIn.connected,
-                    };
+                    if (gpIn) {
+                        gpOutList.push({
+                            index: gpIn.index,
+                            axes: gpIn.axes || [],
+                            buttons: (gpIn.buttons || []).map(function (b) { return [ b.pressed, b.value ]; }),
+                            connected: !!gpIn.connected,
+                        });
+                    }
                 }
 
                 callback(Task.succeed({ time: time, gamepads: gpOutList }));

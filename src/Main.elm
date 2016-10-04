@@ -3,14 +3,16 @@ module Main exposing (..)
 import Html
 import Html.App
 import String
-import Time
+import Time exposing (Time)
 
 import Gamepad exposing (Gamepad)
 
 
 
 type alias Model =
-    List Gamepad
+    { time : Time
+    , pads : List Gamepad
+    }
 
 
 type Msg
@@ -21,13 +23,13 @@ type Msg
 
 
 init =
-    ( [], Cmd.none ) --Gamepad.gamepadAndAnimationFrame Pad )
+    ( Model 0 [], Cmd.none )
 
 
 update msg model =
     case msg of
         Pad (time, pads) ->
-            ( pads, Cmd.none ) --Gamepad.gamepadAndAnimationFrame Pad )
+            ( Model time pads, Cmd.none )
 
 
 
@@ -40,8 +42,8 @@ viewGamepads gamepads =
 view model =
     Html.div
         []
-        [ Html.div [] []
-        , Html.div [] [viewGamepads model ]
+        [ Html.div [] [ Html.text (toString model.time)]
+        , Html.div [] [viewGamepads model.pads ]
         ]
 
 
