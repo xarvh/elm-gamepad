@@ -10,8 +10,8 @@ var _xarvh$elm_gamepad$Native_Gamepad = function() {
 
 
     return {
-        gamepadAndAnimationFrame: Task.nativeBinding(function (callback) {
-            requestAnimationFrame(function (time) {
+        animationFrameAndGamepads: Task.nativeBinding(function (callback) {
+            var id = requestAnimationFrame(function (time) {
 
                 var gpInList =
                     hasGamepads ? navigator.getGamepads() : [];
@@ -32,8 +32,12 @@ var _xarvh$elm_gamepad$Native_Gamepad = function() {
                     };
                 }
 
-                callback(Task.succeed({ dt: time, gamepads: gpOutList }));
+                callback(Task.succeed({ time: time, gamepads: gpOutList }));
             });
+
+            return function() {
+                cancelAnimationFrame(id);
+            };
         }),
     };
 }();

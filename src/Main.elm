@@ -21,13 +21,13 @@ type Msg
 
 
 init =
-    ( [], Gamepad.gamepadAndAnimationFrame Pad )
+    ( [], Cmd.none ) --Gamepad.gamepadAndAnimationFrame Pad )
 
 
 update msg model =
     case msg of
         Pad (time, pads) ->
-            ( pads, Gamepad.gamepadAndAnimationFrame Pad )
+            ( pads, Cmd.none ) --Gamepad.gamepadAndAnimationFrame Pad )
 
 
 
@@ -50,6 +50,6 @@ main =
     Html.App.program
         { init = init
         , update = update
-        , subscriptions = \model -> Sub.none
+        , subscriptions = \model -> Gamepad.animationFrameAndGamepads Pad
         , view = view
         }
