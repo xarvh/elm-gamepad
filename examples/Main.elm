@@ -4,9 +4,7 @@ import Html
 import Html.App
 import String
 import Time exposing (Time)
-
 import Gamepad exposing (Gamepad)
-
 
 
 type alias Model =
@@ -16,10 +14,7 @@ type alias Model =
 
 
 type Msg
-    = Pad (Time.Time, List Gamepad)
-
-
-
+    = Pad ( Time.Time, List Gamepad )
 
 
 init =
@@ -28,24 +23,23 @@ init =
 
 update msg model =
     case msg of
-        Pad (time, pads) ->
+        Pad ( time, pads ) ->
             ( Model time pads, Cmd.none )
 
 
-
 viewGamepads gamepads =
+    if List.isEmpty gamepads then
+        Html.text "Browser sez no gamepads are available =("
+    else
         Html.div [] (List.map (\g -> Html.div [] [ Html.text <| toString g ]) gamepads)
-
-
 
 
 view model =
     Html.div
         []
-        [ Html.div [] [ Html.text (toString model.time)]
-        , Html.div [] [viewGamepads model.pads ]
+        [ Html.div [] [ Html.text <| "Milliseconds since last frame: " ++ (toString model.time) ]
+        , Html.div [] [ viewGamepads model.pads ]
         ]
-
 
 
 main =
