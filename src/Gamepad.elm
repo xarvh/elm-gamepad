@@ -20,7 +20,7 @@ type alias Gamepad =
     { index : Int
     , axes : List Float
     , buttons : List ( Bool, Float )
-    , connected : Bool
+    , id : String
     }
 
 
@@ -37,7 +37,7 @@ decodeGamepad =
         ("index" := D.int)
         ("axes" := D.list D.float)
         ("buttons" := D.list decodeButton)
-        ("connected" := D.bool)
+        ("id" := D.string)
 
 
 jsonToGamepads : D.Value -> List Gamepad

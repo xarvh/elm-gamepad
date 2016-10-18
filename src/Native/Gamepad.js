@@ -24,12 +24,12 @@ var _xarvh$elm_gamepad$Native_Gamepad = function() {
                     var gpIn =
                         gpInList[i];
 
-                    if (gpIn) {
+                    if (gpIn && gpIn.connected) {
                         gpOutList.push({
                             index: gpIn.index,
+                            id: gpIn.id,
                             axes: gpIn.axes || [],
                             buttons: (gpIn.buttons || []).map(function (b) { return [ b.pressed, b.value ]; }),
-                            connected: !!gpIn.connected,
                         });
                     }
                 }
