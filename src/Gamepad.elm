@@ -1,132 +1,291 @@
-effect module Gamepad where { subscription = MySub } exposing (Gamepad, animationFrameAndGamepads)
+module Gamepad exposing (..)
 
-{-|
-
-@docs Gamepad
-@docs animationFrameAndGamepads
-
+{-| @docs Gamepad
 -}
 
-import Json.Decode as D exposing ((:=))
-import Native.Gamepad
-import Process
-import Task exposing (Task)
+import Array exposing (Array)
+import Dict exposing (Dict)
+import Gamepad.DefaultDb
+import Json.Decode as Decode exposing (Decoder)
+import List.Extra
+import Regex
 import Time exposing (Time)
 
 
-{-| Describes a generic gamepad
+{-
+   ISSUE:
+     digital pad is represented sometimes as two axis, sometimes as four buttons.
+     How do we express this in the db?
+
+     one possiblity: "dpX:b11b12"
+
+
+
+
+
+    API: Gamepad
+    ------------
+
+    features : Gamepad -> Set Feature
+
+    leftShoulderIsPressed : Gamepad -> Bool
+    leftShoulderValue : Gamepad -> Float
 -}
-type alias Gamepad =
-    { index : Int
-    , axes : List Float
-    , buttons : List ( Bool, Float )
+-- TODO constructor should be private
+
+
+type Gamepad
+    = Gamepad String RawGamepad
+
+
+type Connection
+    = Disconnected
+    | Unrecognised
+    | Available Gamepad
+
+
+{-| TODO constructor should be private
+-}
+type Database
+    = Database (Dict String String)
+
+
+{-| Can't really make this private, since it must come from a port
+-}
+type alias Blob =
+    List (Maybe RawGamepad)
+
+
+type alias RawButton =
+    ( Bool, Float )
+
+
+type alias RawGamepad =
+    { axes : Array Float
+    , buttons : Array RawButton
+    , connected : Bool
     , id : String
+    , index : Int
     }
 
 
-decodeButton =
-    D.tuple2
-        (,)
-        D.bool
-        D.float
+
+-- db helpers
 
 
-decodeGamepad =
-    D.object4
-        Gamepad
-        ("index" := D.int)
-        ("axes" := D.list D.float)
-        ("buttons" := D.list decodeButton)
-        ("id" := D.string)
+defaultDb : Database
+defaultDb =
+    dbDecoder Gamepad.DefaultDb.defaultDbAsString
 
 
-jsonToGamepads : D.Value -> List Gamepad
-jsonToGamepads gamepadsAsJson =
-    D.decodeValue (D.list decodeGamepad) gamepadsAsJson
-        |> Result.withDefault []
-
-
-
--- SUBSCRIPTION
-
-
-type alias TimeAndGamepads =
-    ( Time, List Gamepad )
-
-
-type MySub msg
-    = AniFrame (TimeAndGamepads -> msg)
-
-
-nativeTask : Task x { time : Time, gamepads : D.Value }
-nativeTask =
-    Native.Gamepad.animationFrameAndGamepads
-
-
-animationFrameAndGamepadsTask : Task x TimeAndGamepads
-animationFrameAndGamepadsTask =
-    Task.map (\{ time, gamepads } -> ( time, jsonToGamepads gamepads )) nativeTask
-
-
-subMap : (a -> b) -> MySub a -> MySub b
-subMap f (AniFrame tagger) =
-    AniFrame (f << tagger)
-
-
-{-|
-    Replaces [AnimationFrame.diffs](http://package.elm-lang.org/packages/elm-lang/animation-frame/latest).
-
-    Requests the browser's animationFrame AND gamepad status at the same time.
-
-    There are no events defined for gamepad signals so gamepads must be polled, and the best time when to
-    do this is
-    ["immediately before the animation callbacks are executed"](https://w3c.github.io/gamepad/#usage-examples).
--}
-animationFrameAndGamepads : (TimeAndGamepads -> msg) -> Sub msg
-animationFrameAndGamepads tagger =
-    subscription (AniFrame tagger)
-
-
-type alias State msg =
-    { subs : List (MySub msg)
-    , request : Maybe Process.Id
-    , oldTime : Time
-    }
-
-
-init : Task Never (State msg)
-init =
-    Task.succeed (State [] Nothing 0)
-
-
-onEffects : Platform.Router msg TimeAndGamepads -> List (MySub msg) -> State msg -> Task Never (State msg)
-onEffects router subs { request, oldTime } =
-    case ( request, subs ) of
-        ( Nothing, [] ) ->
-            Task.succeed (State [] Nothing oldTime)
-
-        ( Just pid, [] ) ->
-            Process.kill pid `Task.andThen` \_ ->
-            Task.succeed (State [] Nothing oldTime)
-
-        ( Nothing, _ ) ->
-            Process.spawn (animationFrameAndGamepadsTask `Task.andThen` Platform.sendToSelf router) `Task.andThen` \pid ->
-            Time.now `Task.andThen` \time ->
-            Task.succeed (State subs (Just pid) time)
-
-        ( Just _, _ ) ->
-            Task.succeed (State subs request oldTime)
-
-
-onSelfMsg : Platform.Router msg TimeAndGamepads -> TimeAndGamepads -> State msg -> Task Never (State msg)
-onSelfMsg router ( newTime, gamepads ) { subs, oldTime } =
+dbDecoder : String -> Database
+dbDecoder dbAsString =
     let
-        diff =
-            newTime - oldTime
+        stringToTuple dbEntry =
+            case String.split "```" dbEntry of
+                [ id, mapping ] ->
+                    Just ( id, mapping )
 
-        send (AniFrame tagger) =
-            Platform.sendToApp router (tagger ( diff, gamepads ))
+                _ ->
+                    Nothing
     in
-        Process.spawn (animationFrameAndGamepadsTask `Task.andThen` Platform.sendToSelf router) `Task.andThen` \pid ->
-        Task.sequence (List.map send subs) `Task.andThen` \_ ->
-        Task.succeed (State subs (Just pid) newTime)
+        dbAsString
+            |> String.split "\n"
+            |> List.map stringToTuple
+            |> List.filterMap identity
+            |> Dict.fromList
+            |> Database
+
+
+
+-- getGamepad helpers
+
+
+type ControlInput
+    = Axis Int
+    | Button Int
+
+
+mappingToRawIndex : String -> String -> Maybe ControlInput
+mappingToRawIndex inputCode mapping =
+    let
+        regex =
+            "(^|,)" ++ inputCode ++ ":([a-z]?)([0-9]?)(,|$)"
+
+        regexMatchToControlInput : Regex.Match -> Maybe ControlInput
+        regexMatchToControlInput match =
+            case match.submatches of
+                _ :: (Just "b") :: (Just index) :: _ ->
+                    index
+                        |> String.toInt
+                        |> Result.toMaybe
+                        |> Maybe.map Button
+
+                _ :: (Just "a") :: (Just index) :: _ ->
+                    index
+                        |> String.toInt
+                        |> Result.toMaybe
+                        |> Maybe.map Axis
+
+                _ ->
+                    Nothing
+    in
+        mapping
+            |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
+            |> List.head
+            |> Maybe.andThen regexMatchToControlInput
+
+
+
+-- input code helpers
+
+
+axisToButton : Float -> Bool
+axisToButton n =
+    n > 0.1
+
+
+buttonToAxis : Bool -> Float
+buttonToAxis b =
+    if b then
+        1
+    else
+        0
+
+
+isPressed : String -> Gamepad -> Bool
+isPressed inputCode (Gamepad mapping rawGamepad) =
+    case mappingToRawIndex inputCode mapping of
+        Nothing ->
+            False
+
+        Just (Axis index) ->
+            Array.get index rawGamepad.axes
+                |> Maybe.withDefault 0
+                |> axisToButton
+
+        Just (Button index) ->
+            Array.get index rawGamepad.buttons
+                |> Maybe.map Tuple.first
+                |> Maybe.withDefault False
+
+
+getValue : String -> Gamepad -> Float
+getValue inputCode (Gamepad mapping rawGamepad) =
+    case mappingToRawIndex inputCode mapping of
+        Nothing ->
+            0
+
+        Just (Axis index) ->
+            Array.get index rawGamepad.axes
+                |> Maybe.withDefault 0
+
+        Just (Button index) ->
+            Array.get index rawGamepad.buttons
+                |> Maybe.map Tuple.first
+                |> Maybe.withDefault False
+                |> buttonToAxis
+
+
+
+-- public functions
+
+
+getGamepad : Blob -> Int -> Connection
+getGamepad =
+    getGamepadWithDb defaultDb
+
+
+getGamepadWithDb : Database -> Blob -> Int -> Connection
+getGamepadWithDb (Database db) blob index =
+    case blob |> List.filterMap identity |> List.Extra.find (\g -> g.index == index) of
+        Nothing ->
+            Disconnected
+
+        Just rawGamepad ->
+            if not rawGamepad.connected then
+                Disconnected
+            else
+                -- TODO search first in the custom dict
+                case Dict.get rawGamepad.id db of
+                    Nothing ->
+                        Unrecognised
+
+                    Just mapping ->
+                        Available (Gamepad mapping rawGamepad)
+
+
+aIsPressed =
+    isPressed "a"
+
+
+bIsPressed =
+    isPressed "b"
+
+
+xIsPressed =
+    isPressed "x"
+
+
+yIsPressed =
+    isPressed "y"
+
+
+startIsPressed =
+    isPressed "start"
+
+
+backIsPressed =
+    isPressed "back"
+
+
+guideIsPressed =
+    isPressed "guide"
+
+
+leftX =
+    getValue "leftx"
+
+
+leftY =
+    getValue "lefty"
+
+
+leftStickIsPressed =
+    isPressed "leftstick"
+
+
+leftShoulderIsPressed =
+    isPressed "lefttrigger"
+
+
+leftTriggerIsPressed =
+    isPressed "lefttrigger"
+
+
+leftTriggerValue =
+    getValue "lefttrigger"
+
+
+rightX =
+    getValue "rightx"
+
+
+rightY =
+    getValue "righty"
+
+
+rightStickIsPressed =
+    isPressed "rightstick"
+
+
+rightShoulderIsPressed =
+    isPressed "righttrigger"
+
+
+rightTriggerIsPressed =
+    isPressed "righttrigger"
+
+
+rightTriggerValue =
+    getValue "righttrigger"
