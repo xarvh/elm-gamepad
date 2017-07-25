@@ -31,9 +31,10 @@ import Time exposing (Time)
     leftShoulderIsPressed : Gamepad -> Bool
     leftShoulderValue : Gamepad -> Float
 -}
--- TODO constructor should be private
 
 
+{-| TODO constructor should be private
+-}
 type Gamepad
     = Gamepad String RawGamepad
 
@@ -104,6 +105,24 @@ dbDecoder dbAsString =
 type ControlInput
     = Axis Int
     | Button Int
+
+
+{-| TODO this function should be visible by Gamepad.Remap, but not elsewhere
+-}
+blobToRawGamepad : Int -> Blob -> Maybe RawGamepad
+blobToRawGamepad index blob =
+    blob
+        |> List.filterMap identity
+        |> List.Extra.find (\g -> g.index == index)
+        |> Maybe.andThen isConnected
+
+
+isConnected : RawGamepad -> Maybe RawGamepad
+isConnected rawGamepad =
+    if rawGamepad.connected then
+        Just rawGamepad
+    else
+        Nothing
 
 
 mappingToRawIndex : String -> String -> Maybe ControlInput
@@ -198,21 +217,18 @@ getGamepad =
 
 getGamepadWithDb : Database -> Blob -> Int -> Connection
 getGamepadWithDb (Database db) blob index =
-    case blob |> List.filterMap identity |> List.Extra.find (\g -> g.index == index) of
+    case blobToRawGamepad index blob of
         Nothing ->
             Disconnected
 
         Just rawGamepad ->
-            if not rawGamepad.connected then
-                Disconnected
-            else
-                -- TODO search first in the custom dict
-                case Dict.get rawGamepad.id db of
-                    Nothing ->
-                        Unrecognised
+            -- TODO search first in the custom dict
+            case Dict.get rawGamepad.id db of
+                Nothing ->
+                    Unrecognised
 
-                    Just mapping ->
-                        Available (Gamepad mapping rawGamepad)
+                Just mapping ->
+                    Available (Gamepad mapping rawGamepad)
 
 
 aIsPressed =

@@ -1,5 +1,7 @@
 module Gamepad.Remap exposing (..)
 
+import Array
+import Dict exposing (Dict)
 import Gamepad
 import Gamepad.Visual
 import Html exposing (..)
@@ -81,15 +83,91 @@ baseControlNames =
 
 
 --
+--
+
+
+type Status
+    = Idle String
+    | Guessing Time (List Gamepad.Blob)
 
 
 type alias Model =
     { index : Int
+    , timeline : List Gamepad.RawGamepad
+    , best : ( String, Float )
     }
 
 
 type Msg
     = OnGamepad ( Time, Gamepad.Blob )
+
+
+
+--
+
+
+type Target
+    = Stick
+    | Button
+    | Dpad
+
+
+type alias CurrentTarget =
+    { name : String
+    }
+
+
+
+-- Guess
+--
+-- This code is used to get an estimate of the buttons/sticks the user is
+-- moving given a time series of RawGamepad states
+
+
+axisToEstimate index value =
+    ( "a" ++ toString index, value * value )
+
+
+{-| TODO: use bool?
+-}
+buttonToEstimate index ( bool, value ) =
+    ( "b" ++ toString index, value * value )
+
+
+addEstimate : ( String, Float ) -> Dict String Float -> Dict String Float
+addEstimate ( code, weight ) oldEstimates =
+    let
+        newWeight =
+            oldEstimates
+                |> Dict.get code
+                |> Maybe.withDefault 0
+                |> (+) weight
+    in
+        Dict.insert code newWeight oldEstimates
+
+
+addRawGamepadToEstimates : Gamepad.RawGamepad -> Dict String Float -> Dict String Float
+addRawGamepadToEstimates rawGamepad estimates =
+    let
+        axesEstimates =
+            Array.indexedMap axisToEstimate rawGamepad.axes
+
+        buttonsEstimates =
+            Array.indexedMap buttonToEstimate rawGamepad.buttons
+    in
+        Array.append axesEstimates buttonsEstimates
+            |> Array.foldr addEstimate estimates
+
+
+guessButton : List Gamepad.RawGamepad -> ( String, Float )
+guessButton timeline =
+    timeline
+        |> List.foldr addRawGamepadToEstimates Dict.empty
+        |> Dict.toList
+        |> List.sortBy Tuple.second
+        |> List.reverse
+        |> List.head
+        |> Maybe.withDefault ("nothing captured", 0)
 
 
 
@@ -100,6 +178,8 @@ initFullRemap : Int -> ( Model, Cmd Msg )
 initFullRemap index =
     noCmd
         { index = index
+        , timeline = []
+        , best = ( "", 0 )
         }
 
 
@@ -111,9 +191,30 @@ noCmd model =
     ( model, Cmd.none )
 
 
+onGamepad : Time -> Gamepad.Blob -> Model -> Model
+onGamepad dt blob model =
+    case Gamepad.blobToRawGamepad model.index blob of
+        Nothing ->
+            { model | timeline = [], best = ( "not connected", 0 ) }
+
+        Just rawGamepad ->
+            let
+                timeline =
+                    model.timeline
+                        |> (::) rawGamepad
+                        |> List.take 20
+
+                best =
+                    guessButton timeline
+            in
+                { model | timeline = timeline, best = best }
+
+
 update : Msg -> Model -> ( Outcome, Cmd Msg )
 update msg model =
-    noCmd (StillOpen model)
+    case msg of
+        OnGamepad ( dt, blob ) ->
+            noCmd <| StillOpen <| onGamepad dt blob model
 
 
 
@@ -122,7 +223,7 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    Gamepad.Visual.xbox
+    text <| toString <| model.best
 
 
 

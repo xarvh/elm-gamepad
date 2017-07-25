@@ -120,7 +120,7 @@ view model =
                     [ HA.style
                         [ ( "display", "flex" )
                         , ( "justify-content", "center" )
-                        , ( "width", "100%")
+                        , ( "width", "100%" )
                         ]
                     ]
                     [ Gamepad.Remap.view model.remap |> Html.map OnRemapMsg ]
@@ -137,13 +137,24 @@ view model =
 
 
 
---
+-- subscriptions
+
+
+subscriptions model =
+    Sub.batch
+        [ GamepadPort.gamepad OnGamepad
+        , Gamepad.Remap.subscriptions GamepadPort.gamepad model.remap |> Sub.map OnRemapMsg
+        ]
+
+
+
+-- main
 
 
 main =
     Html.program
         { init = init
         , update = update
-        , subscriptions = \model -> GamepadPort.gamepad OnGamepad
+        , subscriptions = subscriptions
         , view = view
         }
