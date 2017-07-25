@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import Array
 import Gamepad
+import Gamepad.Remap
 import GamepadPort
 import Html exposing (..)
 import Time exposing (Time)
@@ -10,11 +11,13 @@ import Time exposing (Time)
 type alias Model =
     { time : Time
     , blob : Maybe Gamepad.Blob
+    , remap : Gamepad.Remap.Model
     }
 
 
 type Msg
     = OnGamepad ( Time, Gamepad.Blob )
+    | OnRemapMsg Gamepad.Remap.Msg
 
 
 
@@ -26,13 +29,41 @@ noCmd model =
 
 
 init =
-    noCmd { time = 0, blob = Nothing }
+    let
+        ( remapModel, remapCmd ) =
+            Gamepad.Remap.initFullRemap 0
+    in
+        ( { time = 0
+          , blob = Nothing
+          , remap = remapModel
+          }
+        , Cmd.map OnRemapMsg remapCmd
+        )
 
 
 update msg model =
     case msg of
         OnGamepad ( time, blob ) ->
-            noCmd { time = time, blob = Just blob }
+            noCmd { model | blob = Just blob }
+
+        OnRemapMsg nestedMsg ->
+            let
+                ( outcome, cmd ) =
+                    Gamepad.Remap.update nestedMsg model.remap
+
+                newModel =
+                    case outcome of
+                        Gamepad.Remap.StillOpen nestedModel ->
+                            { model | remap = nestedModel }
+
+                        Gamepad.Remap.Done config ->
+                            let
+                                q =
+                                    Debug.log "config ->" config
+                            in
+                                model
+            in
+                ( newModel, Cmd.map OnRemapMsg cmd )
 
 
 
@@ -84,7 +115,8 @@ view model =
         Just blob ->
             div
                 []
-                [ List.range 0 3
+                [ Gamepad.Remap.view model.remap |> Html.map OnRemapMsg
+                , List.range 0 3
                     |> List.map (Gamepad.getGamepad blob)
                     |> List.map viewGamepad
                     |> List.map (\h -> li [] [ h ])
