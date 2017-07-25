@@ -5,6 +5,7 @@ import Gamepad
 import Gamepad.Remap
 import GamepadPort
 import Html exposing (..)
+import Html.Attributes as HA
 import Time exposing (Time)
 
 
@@ -115,7 +116,14 @@ view model =
         Just blob ->
             div
                 []
-                [ Gamepad.Remap.view model.remap |> Html.map OnRemapMsg
+                [ div
+                    [ HA.style
+                        [ ( "display", "flex" )
+                        , ( "justify-content", "center" )
+                        , ( "width", "100%")
+                        ]
+                    ]
+                    [ Gamepad.Remap.view model.remap |> Html.map OnRemapMsg ]
                 , List.range 0 3
                     |> List.map (Gamepad.getGamepad blob)
                     |> List.map viewGamepad
