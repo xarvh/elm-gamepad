@@ -96,6 +96,14 @@ viewGamepad connection =
             , ( "leftY", Gamepad.leftY >> toString )
             , ( "rightX", Gamepad.rightX >> toString )
             , ( "rightY", Gamepad.rightY >> toString )
+
+            --
+            , ( "dpadUp", Gamepad.dpadUp >> toString )
+            , ( "dpadDown", Gamepad.dpadDown >> toString )
+            , ( "dpadLeft", Gamepad.dpadLeft >> toString )
+            , ( "dpadRight", Gamepad.dpadRight >> toString )
+            , ( "dpadX", Gamepad.dpadX >> toString)
+            , ( "dpadY", Gamepad.dpadY >> toString)
             ]
                 |> List.map (\( s, f ) -> div [] [ text s, text ": ", text <| f pad ])
                 |> div []

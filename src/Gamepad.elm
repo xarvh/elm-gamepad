@@ -13,23 +13,8 @@ import Time exposing (Time)
 
 
 {-
-   ISSUE:
-     digital pad is represented sometimes as two axis, sometimes as four buttons.
-     How do we express this in the db?
-
-     one possiblity: "dpX:b11b12"
-
-
-
-
-
-    API: Gamepad
-    ------------
-
-    features : Gamepad -> Set Feature
-
-    leftShoulderIsPressed : Gamepad -> Bool
-    leftShoulderValue : Gamepad -> Float
+   TODO:
+     * features : Gamepad -> Set Feature
 -}
 
 
@@ -102,9 +87,9 @@ dbDecoder dbAsString =
 -- getGamepad helpers
 
 
-type ControlInput
-    = Axis Int
-    | Button Int
+type InputType
+    = Axis
+    | Button
 
 
 {-| TODO this function should be visible by Gamepad.Remap, but not elsewhere
@@ -125,34 +110,52 @@ isConnected rawGamepad =
         Nothing
 
 
-mappingToRawIndex : String -> String -> Maybe ControlInput
+stringToInputType : String -> Maybe InputType
+stringToInputType s =
+    case s of
+        "a" ->
+            Just Axis
+
+        "b" ->
+            Just Button
+
+        _ ->
+            Nothing
+
+
+maybeToReverse : Maybe String -> Bool
+maybeToReverse maybeReverse =
+    case maybeReverse of
+        Just "-" ->
+            True
+
+        _ ->
+            False
+
+
+regexMatchToInputTuple : Regex.Match -> Maybe ( InputType, Int, Bool )
+regexMatchToInputTuple match =
+    case match.submatches of
+        _ :: maybeReverse :: (Just inputTypeAsString) :: (Just indexAsString) :: _ ->
+            Maybe.map3 (,,)
+                (inputTypeAsString |> stringToInputType)
+                (indexAsString |> String.toInt |> Result.toMaybe)
+                (maybeReverse |> maybeToReverse |> Just)
+
+        _ ->
+            Nothing
+
+
+mappingToRawIndex : String -> String -> Maybe ( InputType, Int, Bool )
 mappingToRawIndex inputCode mapping =
     let
         regex =
-            "(^|,)" ++ inputCode ++ ":([a-z]?)([0-9]?)(,|$)"
-
-        regexMatchToControlInput : Regex.Match -> Maybe ControlInput
-        regexMatchToControlInput match =
-            case match.submatches of
-                _ :: (Just "b") :: (Just index) :: _ ->
-                    index
-                        |> String.toInt
-                        |> Result.toMaybe
-                        |> Maybe.map Button
-
-                _ :: (Just "a") :: (Just index) :: _ ->
-                    index
-                        |> String.toInt
-                        |> Result.toMaybe
-                        |> Maybe.map Axis
-
-                _ ->
-                    Nothing
+            "(^|,)" ++ inputCode ++ ":(-)?([a-z]?)([0-9]?)(,|$)"
     in
         mapping
             |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
             |> List.head
-            |> Maybe.andThen regexMatchToControlInput
+            |> Maybe.andThen regexMatchToInputTuple
 
 
 
@@ -172,18 +175,27 @@ buttonToAxis b =
         0
 
 
+reverseAxis : Bool -> Float -> Float
+reverseAxis isReverse n =
+    if isReverse then
+        -n
+    else
+        n
+
+
 isPressed : String -> Gamepad -> Bool
 isPressed inputCode (Gamepad mapping rawGamepad) =
     case mappingToRawIndex inputCode mapping of
         Nothing ->
             False
 
-        Just (Axis index) ->
+        Just ( Axis, index, isReverse ) ->
             Array.get index rawGamepad.axes
                 |> Maybe.withDefault 0
+                |> reverseAxis isReverse
                 |> axisToButton
 
-        Just (Button index) ->
+        Just ( Button, index, isReverse ) ->
             Array.get index rawGamepad.buttons
                 |> Maybe.map Tuple.first
                 |> Maybe.withDefault False
@@ -195,11 +207,12 @@ getValue inputCode (Gamepad mapping rawGamepad) =
         Nothing ->
             0
 
-        Just (Axis index) ->
+        Just ( Axis, index, isReverse ) ->
             Array.get index rawGamepad.axes
                 |> Maybe.withDefault 0
+                |> reverseAxis isReverse
 
-        Just (Button index) ->
+        Just ( Button, index, isReverse ) ->
             Array.get index rawGamepad.buttons
                 |> Maybe.map Tuple.first
                 |> Maybe.withDefault False
@@ -222,13 +235,16 @@ getGamepadWithDb (Database db) blob index =
             Disconnected
 
         Just rawGamepad ->
-            -- TODO search first in the custom dict
             case Dict.get rawGamepad.id db of
                 Nothing ->
                     Unrecognised
 
                 Just mapping ->
                     Available (Gamepad mapping rawGamepad)
+
+
+
+-- face buttons
 
 
 aIsPressed =
@@ -247,6 +263,10 @@ yIsPressed =
     isPressed "y"
 
 
+
+-- utility
+
+
 startIsPressed =
     isPressed "start"
 
@@ -257,6 +277,50 @@ backIsPressed =
 
 guideIsPressed =
     isPressed "guide"
+
+
+
+-- dpad
+
+
+dpadUp =
+    isPressed "dpup"
+
+
+dpadDown =
+    isPressed "dpdown"
+
+
+dpadLeft =
+    isPressed "dpleft"
+
+
+dpadRight =
+    isPressed "dpright"
+
+
+dpadX : Gamepad -> Int
+dpadX pad =
+    if dpadLeft pad then
+        -1
+    else if dpadRight pad then
+        1
+    else
+        0
+
+
+dpadY : Gamepad -> Int
+dpadY pad =
+    if dpadUp pad then
+        -1
+    else if dpadDown pad then
+        1
+    else
+        0
+
+
+
+-- left
 
 
 leftX =
@@ -281,6 +345,10 @@ leftTriggerIsPressed =
 
 leftTriggerValue =
     getValue "lefttrigger"
+
+
+
+-- right
 
 
 rightX =
