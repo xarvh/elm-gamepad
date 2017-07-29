@@ -27,33 +27,11 @@ type Msg
 
 
 inputNames =
-    [ ( LeftX, "Move > Right" )
-    , ( LeftY, "Move ^ Up" )
-    , ( RightX, "Aim > Right" )
-    , ( RightY, "Aim ^ Up" )
-    , ( A, "Fire" )
-    , ( B, "Fire (alternate button)" )
+    [ ( LeftUp, "up" )
+    , ( LeftDown, "down" )
+    , ( LeftLeft, "left" )
+    , ( LeftRight, "right" )
     ]
-
-
-moveX =
-    Gamepad.leftX
-
-
-moveY =
-    Gamepad.leftY
-
-
-aimX =
-    Gamepad.rightX
-
-
-aimY =
-    Gamepad.rightY
-
-
-shootIsPressed pad =
-    Gamepad.aIsPressed pad || Gamepad.bIsPressed pad
 
 
 
@@ -108,29 +86,8 @@ viewGamepad connection =
                 ts ( name, getter ) =
                     toString name ++ ": " ++ toString (getter pad)
             in
-                [ ts ( A, Gamepad.aIsPressed )
-                , ts ( B, Gamepad.bIsPressed )
-                , ts ( X, Gamepad.xIsPressed )
-                , ts ( Y, Gamepad.yIsPressed )
-
-                --
-                , ts ( Start, Gamepad.startIsPressed )
-                , ts ( Back, Gamepad.backIsPressed )
-                , ts ( Guide, Gamepad.guideIsPressed )
-
-                --
-                , ts ( LeftX, Gamepad.leftX )
-                , ts ( LeftY, Gamepad.leftY )
-                , ts ( RightX, Gamepad.rightX )
-                , ts ( RightY, Gamepad.rightY )
-
-                --
-                , ts ( DpadUp, Gamepad.dpadUp )
-                , ts ( DpadDown, Gamepad.dpadDown )
-                , ts ( DpadLeft, Gamepad.dpadLeft )
-                , ts ( DpadRight, Gamepad.dpadRight )
-                , ts ( "dpadX", Gamepad.dpadX )
-                , ts ( "dpadY", Gamepad.dpadY )
+                [ ts ( "X", Gamepad.leftX )
+                , ts ( "Y", Gamepad.leftY )
                 ]
                     |> List.map (\s -> div [] [ text s ])
                     |> div []

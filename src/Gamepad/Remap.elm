@@ -27,10 +27,20 @@ type MappableControl
     | Start
     | Back
     | Guide
-    | LeftX
-    | LeftY
-    | RightX
-    | RightY
+    | LeftLeft
+    | LeftRight
+    | LeftUp
+    | LeftDown
+    | LeftStick
+    | LeftShoulder
+    | LeftTrigger
+    | RightLeft
+    | RightRight
+    | RightUp
+    | RightDown
+    | RightStick
+    | RightShoulder
+    | RightTrigger
     | DpadUp
     | DpadDown
     | DpadLeft
@@ -99,17 +109,47 @@ mappableControlToDestinationCode mappableControl =
         Guide ->
             destinationCodes.guide
 
-        LeftX ->
-            destinationCodes.leftX
+        LeftLeft ->
+            destinationCodes.leftLeft
 
-        LeftY ->
-            destinationCodes.leftY
+        LeftRight ->
+            destinationCodes.leftRight
 
-        RightX ->
-            destinationCodes.rightX
+        LeftUp ->
+            destinationCodes.leftUp
 
-        RightY ->
-            destinationCodes.rightY
+        LeftDown ->
+            destinationCodes.leftDown
+
+        LeftStick ->
+            destinationCodes.leftStick
+
+        LeftShoulder ->
+            destinationCodes.leftShoulder
+
+        LeftTrigger ->
+            destinationCodes.leftTrigger
+
+        RightLeft ->
+            destinationCodes.rightLeft
+
+        RightRight ->
+            destinationCodes.rightRight
+
+        RightUp ->
+            destinationCodes.rightUp
+
+        RightDown ->
+            destinationCodes.rightDown
+
+        RightStick ->
+            destinationCodes.rightStick
+
+        RightShoulder ->
+            destinationCodes.rightShoulder
+
+        RightTrigger ->
+            destinationCodes.rightTrigger
 
         DpadUp ->
             destinationCodes.dpadUp

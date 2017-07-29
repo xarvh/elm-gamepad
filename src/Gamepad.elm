@@ -115,10 +115,44 @@ intToString =
     toString
 
 
-removeReversedDuplicates : Dict String Origin -> Dict String Origin
-removeReversedDuplicates map =
-    -- TODO
-    map
+{-| If leftUp and leftDown point to different origins, then the normal
+
+    leftY =
+        leftUp - leftDown
+
+is perfectly valid.
+
+However if they are on the same origin and that origin is a -1 to +1 axis, the
+equality above will yield values between -2 and +2.
+
+This function detects such cases and removes one of the two origins from the
+map.
+
+    leftY =
+        leftUp
+
+-}
+fixAxisCoupling : ( String, String ) -> Dict String Origin -> Dict String Origin
+fixAxisCoupling ( code1, code2 ) map =
+    case ( Dict.get code1 map, Dict.get code2 map ) of
+        ( Just (Origin isReverse1 Axis index1), Just (Origin isReverse2 Axis index2) ) ->
+            if index1 == index2 then
+                Dict.remove code1 map
+            else
+                map
+
+        ( _, _ ) ->
+            map
+
+
+fixAllAxesCoupling : Dict String Origin -> Dict String Origin
+fixAllAxesCoupling map =
+    [ ( destinationCodes.leftLeft, destinationCodes.leftRight )
+    , ( destinationCodes.leftUp, destinationCodes.leftDown )
+    , ( destinationCodes.rightLeft, destinationCodes.rightRight )
+    , ( destinationCodes.rightUp, destinationCodes.rightDown )
+    ]
+        |> List.foldr fixAxisCoupling map
 
 
 customMap : Dict String Origin -> Result String CustomMap
@@ -145,7 +179,7 @@ customMap map =
             destinationCode ++ ":" ++ originToCode origin
     in
         map
-            |> removeReversedDuplicates
+            |> fixAllAxesCoupling
             |> Dict.toList
             |> List.map tupleToString
             |> List.sortBy identity
@@ -315,9 +349,8 @@ getValue destinationCode (Gamepad mapping rawGamepad) =
 
         Just ( Button, index, isReverse ) ->
             Array.get index rawGamepad.buttons
-                |> Maybe.map Tuple.first
-                |> Maybe.withDefault False
-                |> buttonToAxis
+                |> Maybe.map Tuple.second
+                |> Maybe.withDefault 0
 
 
 getGamepad : Dict String CustomMap -> Blob -> Int -> Connection
@@ -336,6 +369,12 @@ getGamepad customMaps blob index =
                     Available (Gamepad map rawGamepad)
 
 
+getAxis : String -> String -> Gamepad -> Float
+getAxis codeNegative codePositive pad =
+    (getValue codePositive pad - getValue codeNegative pad)
+        |> clamp -1 1
+
+
 
 -- destination codes
 
@@ -348,13 +387,17 @@ destinationCodes =
     , start = "start"
     , back = "back"
     , guide = "guide"
-    , leftX = "leftx"
-    , leftY = "lefty"
+    , leftLeft = "leftleft"
+    , leftRight = "leftright"
+    , leftUp = "leftup"
+    , leftDown = "leftdown"
     , leftStick = "leftstick"
     , leftShoulder = "leftshoulder"
     , leftTrigger = "lefttrigger"
-    , rightX = "rightx"
-    , rightY = "righty"
+    , rightLeft = "rightleft"
+    , rightRight = "rightright"
+    , rightUp = "rightup"
+    , rightDown = "rightdown"
     , rightStick = "rightstick"
     , rightShoulder = "rightshoulder"
     , rightTrigger = "righttrigger"
@@ -446,11 +489,11 @@ dpadY pad =
 
 
 leftX =
-    getValue destinationCodes.leftX
+    getAxis destinationCodes.leftLeft destinationCodes.leftRight
 
 
 leftY =
-    getValue destinationCodes.leftY
+    getAxis destinationCodes.leftDown destinationCodes.leftUp
 
 
 leftStickIsPressed =
@@ -474,11 +517,11 @@ leftTriggerValue =
 
 
 rightX =
-    getValue destinationCodes.rightX
+    getAxis destinationCodes.rightLeft destinationCodes.rightRight
 
 
 rightY =
-    getValue destinationCodes.rightY
+    getAxis destinationCodes.rightDown destinationCodes.rightUp
 
 
 rightStickIsPressed =
