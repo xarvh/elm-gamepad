@@ -3,11 +3,12 @@ module Gamepad
         ( Gamepad
         , Connection(..)
         , Blob
-        , Database
+        , CustomMap
         , RawGamepad
           --
         , getGamepad
-        , getGamepadWithDatabase
+        , customMapsToString
+        , customMapsFromString
           -- recognised gamepad
         , aIsPressed
         , bIsPressed
@@ -35,14 +36,14 @@ module Gamepad
         , rightTriggerIsPressed
         , rightTriggerValue
           -- advanced
-        , stringToDatabase
+        , Origin
+        , customMap
         , destinationCodes
         , getFeatures
-          -- raw gamepad
         , blobToRawGamepad
         , getId
         , isConnected
-        , estimateOriginCode
+        , estimateOrigin
         )
 
 {-| @docs Gamepad
@@ -57,9 +58,13 @@ import Set exposing (Set)
 import Time exposing (Time)
 
 
-type SourceType
+type OriginType
     = Axis
     | Button
+
+
+type Origin
+    = Origin Bool OriginType Int
 
 
 type Gamepad
@@ -72,10 +77,8 @@ type Connection
     | Available Gamepad
 
 
-{-| TODO constructor should be private
--}
-type Database
-    = Database (Dict String String)
+type CustomMap
+    = CustomMap String
 
 
 {-| -}
@@ -104,26 +107,87 @@ type alias RawGamepad =
 
 
 
--- db helpers
+-- custom map
 
 
-stringToDatabase : String -> Database
-stringToDatabase dbAsString =
+intToString : Int -> String
+intToString =
+    toString
+
+
+removeReversedDuplicates : Dict String Origin -> Dict String Origin
+removeReversedDuplicates map =
+    -- TODO
+    map
+
+
+customMap : Dict String Origin -> Result String CustomMap
+customMap map =
+    let
+        hasMinus isReverse =
+            if isReverse then
+                "-"
+            else
+                ""
+
+        typeToString originType =
+            case originType of
+                Axis ->
+                    "a"
+
+                Button ->
+                    "b"
+
+        originToCode (Origin isReverse originType index) =
+            hasMinus isReverse ++ typeToString originType ++ intToString index
+
+        tupleToString ( destinationCode, origin ) =
+            destinationCode ++ ":" ++ originToCode origin
+    in
+        map
+            |> removeReversedDuplicates
+            |> Dict.toList
+            |> List.map tupleToString
+            |> List.sortBy identity
+            |> String.join ","
+            |> CustomMap
+            |> Ok
+
+
+customMapDivider =
+    ",,,"
+
+
+customMapsToString : Dict String CustomMap -> String
+customMapsToString maps =
+    let
+        tupleToString ( gamepadId, CustomMap map ) =
+            gamepadId ++ customMapDivider ++ map ++ "\n"
+    in
+        maps
+            |> Dict.toList
+            |> List.map tupleToString
+            |> List.sortBy identity
+            |> String.join ""
+
+
+customMapsFromString : String -> Result String (Dict String CustomMap)
+customMapsFromString mapsAsString =
     let
         stringToTuple dbEntry =
-            case String.split ",,," dbEntry of
-                [ id, mapping ] ->
-                    Just ( id, mapping )
+            case String.split customMapDivider dbEntry of
+                [ id, map ] ->
+                    Just ( id, CustomMap map )
 
                 _ ->
                     Nothing
     in
-        dbAsString
+        mapsAsString
             |> String.split "\n"
             |> List.map stringToTuple
             |> List.filterMap identity
             |> Dict.fromList
-            |> Database
+            |> Ok
 
 
 
@@ -147,7 +211,7 @@ maybeIsConnected rawGamepad =
         Nothing
 
 
-stringToInputType : String -> Maybe SourceType
+stringToInputType : String -> Maybe OriginType
 stringToInputType s =
     case s of
         "a" ->
@@ -170,7 +234,7 @@ maybeToReverse maybeReverse =
             False
 
 
-regexMatchToInputTuple : Regex.Match -> Maybe ( SourceType, Int, Bool )
+regexMatchToInputTuple : Regex.Match -> Maybe ( OriginType, Int, Bool )
 regexMatchToInputTuple match =
     case match.submatches of
         _ :: maybeReverse :: (Just inputTypeAsString) :: (Just indexAsString) :: _ ->
@@ -183,11 +247,11 @@ regexMatchToInputTuple match =
             Nothing
 
 
-mappingToRawIndex : String -> String -> Maybe ( SourceType, Int, Bool )
+mappingToRawIndex : String -> String -> Maybe ( OriginType, Int, Bool )
 mappingToRawIndex destinationCode mapping =
     let
         regex =
-            "(^|,)" ++ destinationCode ++ ":(-)?([a-z]?)([0-9]?)(,|$)"
+            "(^|,)" ++ destinationCode ++ ":(-)?([a-z]?)([0-9]+)(,|$)"
     in
         mapping
             |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
@@ -258,31 +322,25 @@ getValue destinationCode (Gamepad mapping rawGamepad) =
 
 
 -- get gamepad
+-- defaultDatabase : Database
+-- defaultDatabase =
+--     stringToDatabase Gamepad.DefaultDatabase.asString
 
 
-defaultDatabase : Database
-defaultDatabase =
-    stringToDatabase Gamepad.DefaultDatabase.asString
-
-
-getGamepad : Blob -> Int -> Connection
-getGamepad =
-    getGamepadWithDatabase defaultDatabase
-
-
-getGamepadWithDatabase : Database -> Blob -> Int -> Connection
-getGamepadWithDatabase (Database db) blob index =
+getGamepad : Dict String CustomMap -> Blob -> Int -> Connection
+getGamepad customMaps blob index =
+    -- TODO actually use customMaps!!!
     case blobToRawGamepad index blob of
         Nothing ->
             Disconnected
 
         Just rawGamepad ->
-            case Dict.get rawGamepad.id db of
+            case Dict.get rawGamepad.id customMaps of
                 Nothing ->
                     Unrecognised
 
-                Just mapping ->
-                    Available (Gamepad mapping rawGamepad)
+                Just (CustomMap map) ->
+                    Available (Gamepad map rawGamepad)
 
 
 
@@ -462,36 +520,37 @@ Is this a good assumption?
 Are there cases where both should be considered?
 
 -}
-buttonToEstimate : Int -> RawButton -> ( String, Float )
+boolToNumber : Bool -> number
+boolToNumber bool =
+    if bool then
+        1
+    else
+        0
+
+
+buttonToEstimate : Int -> RawButton -> ( Origin, Float )
 buttonToEstimate originIndex ( isPressed, value ) =
-    if isPressed then
-        ( "b" ++ toString originIndex, 1 )
-    else
-        ( "b" ++ toString originIndex, 0 )
+    ( Origin False Button originIndex, boolToNumber isPressed )
 
 
-axisToEstimate : Int -> Float -> ( String, Float )
+axisToEstimate : Int -> Float -> ( Origin, Float )
 axisToEstimate originIndex value =
-    if value < 0 then
-        ( "-a" ++ toString originIndex, -value )
+    ( Origin (value < 0) Axis originIndex, abs value )
+
+
+estimateThreshold : ( Origin, Float ) -> Maybe Origin
+estimateThreshold ( origin, confidence ) =
+    if confidence < 0.5 then
+        Nothing
     else
-        ( "a" ++ toString originIndex, value )
+        Just origin
 
 
-addEstimate : ( String, Float ) -> Dict String Float -> Dict String Float
-addEstimate ( code, weight ) oldEstimates =
-    let
-        newWeight =
-            oldEstimates
-                |> Dict.get code
-                |> Maybe.withDefault 0
-                |> (+) weight
-    in
-        Dict.insert code newWeight oldEstimates
-
-
-addRawGamepadToEstimates : RawGamepad -> Dict String Float
-addRawGamepadToEstimates rawGamepad =
+{-| The function takes a gamepad state and returns a guess of the origin
+currently activated by the player.
+-}
+estimateOrigin : RawGamepad -> Maybe Origin
+estimateOrigin rawGamepad =
     let
         axesEstimates =
             Array.indexedMap axisToEstimate rawGamepad.axes
@@ -500,29 +559,11 @@ addRawGamepadToEstimates rawGamepad =
             Array.indexedMap buttonToEstimate rawGamepad.buttons
     in
         Array.append axesEstimates buttonsEstimates
-            |> Array.foldr addEstimate Dict.empty
-
-
-estimateThreshold : ( String, Float ) -> Maybe String
-estimateThreshold ( code, confidence ) =
-    if confidence < 0.5 then
-        Nothing
-    else
-        Just code
-
-
-{-| The function takes a gamepad state and returns a guess of the origin code
-currently activated by the player.
--}
-estimateOriginCode : RawGamepad -> Maybe String
-estimateOriginCode gamepadState =
-    gamepadState
-        |> addRawGamepadToEstimates
-        |> Dict.toList
-        |> List.sortBy Tuple.second
-        |> List.reverse
-        |> List.head
-        |> Maybe.andThen estimateThreshold
+            |> Array.toList
+            |> List.sortBy Tuple.second
+            |> List.reverse
+            |> List.head
+            |> Maybe.andThen estimateThreshold
 
 
 isConnected : RawGamepad -> Bool

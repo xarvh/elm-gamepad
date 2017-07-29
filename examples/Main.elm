@@ -1,6 +1,7 @@
 module Main exposing (..)
 
 import Array
+import Dict
 import Gamepad
 import Gamepad.Remap exposing (MappableControl(..), Outcome(..))
 import GamepadPort
@@ -151,50 +152,28 @@ showRaw raw =
         |> div []
 
 
-viewRemap model =
-    div
-        [ HA.style
-            [ ( "display", "flex" )
-            , ( "justify-content", "center" )
-            , ( "width", "100%" )
-            ]
-        ]
-        [ case model.remapOutcome of
-            Configured string ->
-                code
-                    []
-                    [ text string ]
-
-            Aborted ->
-                text "aborted"
-
-            Disconnected ->
-                text "disconnected"
-
-            StillOpen nestedModel ->
-                Gamepad.Remap.view nestedModel
-        ]
-
-
 view model =
     case model.blob of
         Nothing ->
             text ""
 
         Just blob ->
-            div
-                []
-                [ viewRemap model |> Html.map OnRemapMsg
-                , List.range 0 3
-                    |> List.map (Gamepad.getGamepad blob)
-                    |> List.map viewGamepad
-                    |> List.map (\h -> li [] [ h ])
-                    |> ul []
-                , blob
-                    |> List.filterMap identity
-                    |> List.map showRaw
-                    |> div []
-                ]
+            case model.remapOutcome of
+                Gamepad.Remap.StillOpen nestedModel ->
+                    Gamepad.Remap.view nestedModel |> Html.map OnRemapMsg
+
+                Gamepad.Remap.Configured gamepadId customMap ->
+                    let
+                        q =
+                            Debug.log "--" customMap
+
+                        customMaps =
+                            Dict.fromList [ ( gamepadId, customMap ) ]
+                    in
+                        viewGamepad <| Gamepad.getGamepad customMaps blob 0
+
+                _ ->
+                    text "fuck"
 
 
 
