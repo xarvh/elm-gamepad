@@ -61,16 +61,11 @@ shootIsPressed pad =
 
 
 init =
-    let
-        ( remapModel, remapCmd ) =
-            Gamepad.Remap.init 0 inputNames
-    in
-        ( { time = 0
-          , blob = Nothing
-          , remapOutcome = StillOpen remapModel
-          }
-        , Cmd.map OnRemapMsg remapCmd
-        )
+    noCmd
+        { time = 0
+        , blob = Nothing
+        , remapOutcome = StillOpen <| Gamepad.Remap.init 0 inputNames
+        }
 
 
 
@@ -89,11 +84,7 @@ update msg model =
         OnRemapMsg nestedMsg ->
             case model.remapOutcome of
                 StillOpen nestedModel ->
-                    let
-                        ( outcome, cmd ) =
-                            Gamepad.Remap.update nestedMsg nestedModel
-                    in
-                        ( { model | remapOutcome = outcome }, cmd |> Cmd.map OnRemapMsg )
+                    noCmd { model | remapOutcome = Gamepad.Remap.update nestedMsg nestedModel }
 
                 _ ->
                     noCmd model
@@ -160,7 +151,7 @@ view model =
         Just blob ->
             case model.remapOutcome of
                 Gamepad.Remap.StillOpen nestedModel ->
-                    Gamepad.Remap.view nestedModel |> Html.map OnRemapMsg
+                    text <| Gamepad.Remap.view nestedModel
 
                 Gamepad.Remap.Configured gamepadId customMap ->
                     let
@@ -173,7 +164,7 @@ view model =
                         viewGamepad <| Gamepad.getGamepad customMaps blob 0
 
                 _ ->
-                    text "fuck"
+                    text "Meh"
 
 
 

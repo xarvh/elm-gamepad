@@ -320,16 +320,9 @@ getValue destinationCode (Gamepad mapping rawGamepad) =
                 |> buttonToAxis
 
 
-
--- get gamepad
--- defaultDatabase : Database
--- defaultDatabase =
---     stringToDatabase Gamepad.DefaultDatabase.asString
-
-
 getGamepad : Dict String CustomMap -> Blob -> Int -> Connection
 getGamepad customMaps blob index =
-    -- TODO actually use customMaps!!!
+    -- TODO merge default maps?
     case blobToRawGamepad index blob of
         Nothing ->
             Disconnected

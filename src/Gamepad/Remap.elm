@@ -7,13 +7,12 @@ module Gamepad.Remap
         , init
         , update
         , view
+        , currentEntry
         , subscriptions
         )
 
 import Dict exposing (Dict)
 import Gamepad exposing (destinationCodes)
-import Html exposing (..)
-import List.Extra
 import Time exposing (Time)
 
 
@@ -38,17 +37,11 @@ type MappableControl
     | DpadRight
 
 
-type Outcome
-    = StillOpen Model
+type Outcome entry
+    = StillOpen (Model entry)
     | Disconnected
     | Aborted
     | Configured String Gamepad.CustomMap
-
-
-type alias UnconfiguredEntry =
-    { destination : MappableControl
-    , label : String
-    }
 
 
 type alias ConfiguredEntry =
@@ -62,12 +55,16 @@ type InputState
     | WaitingForAnyButtonDown
 
 
-type alias Model =
+type alias Model_ entry =
     { configuredEntries : List ConfiguredEntry
     , inputState : InputState
     , gamepadIndex : Int
-    , unconfiguredEntries : List UnconfiguredEntry
+    , unconfiguredEntries : List ( MappableControl, entry )
     }
+
+
+type Model entry
+    = Model (Model_ entry)
 
 
 type Msg
@@ -143,32 +140,21 @@ configuredEntriesToCustomMap entries =
 -- init
 
 
-init : Int -> List ( MappableControl, String ) -> ( Model, Cmd Msg )
-init gamepadIndex controlNames =
-    let
-        tupleToMapEntry ( control, label ) =
-            { destination = control
-            , label = label
-            }
-
-        unconfiguredEntries =
-            controlNames
-                |> List.Extra.uniqueBy (Tuple.first >> mappableControlToDestinationCode)
-                |> List.map tupleToMapEntry
-    in
-        noCmd
-            { configuredEntries = []
-            , inputState = WaitingForAllButtonsUp
-            , gamepadIndex = gamepadIndex
-            , unconfiguredEntries = unconfiguredEntries
-            }
+init : Int -> List ( MappableControl, entry ) -> Model entry
+init gamepadIndex entries =
+    Model
+        { configuredEntries = []
+        , inputState = WaitingForAllButtonsUp
+        , gamepadIndex = gamepadIndex
+        , unconfiguredEntries = entries
+        }
 
 
 
 -- update
 
 
-onButtonPress : String -> Gamepad.Origin -> Model -> Outcome
+onButtonPress : String -> Gamepad.Origin -> Model_ entry -> Outcome entry
 onButtonPress gamepadId origin model =
     case model.unconfiguredEntries of
         [] ->
@@ -182,64 +168,63 @@ onButtonPress gamepadId origin model =
         currentEntry :: remainingEntries ->
             let
                 entryConfig =
-                    { destination = currentEntry.destination
+                    { destination = Tuple.first currentEntry
                     , origin = origin
                     }
             in
-                StillOpen
-                    { model
-                        | configuredEntries = entryConfig :: model.configuredEntries
-                        , unconfiguredEntries = remainingEntries
-                    }
+                StillOpen <|
+                    Model
+                        { model
+                            | configuredEntries = entryConfig :: model.configuredEntries
+                            , unconfiguredEntries = remainingEntries
+                        }
 
 
-onMaybePressedButton : String -> Maybe Gamepad.Origin -> Model -> Outcome
+onMaybePressedButton : String -> Maybe Gamepad.Origin -> Model_ entry -> Outcome entry
 onMaybePressedButton gamepadId maybeOrigin model =
     case ( model.inputState, maybeOrigin ) of
         ( WaitingForAllButtonsUp, Just origin ) ->
-            StillOpen model
+            StillOpen <| Model model
 
         ( WaitingForAllButtonsUp, Nothing ) ->
-            StillOpen { model | inputState = WaitingForAnyButtonDown }
+            StillOpen <| Model { model | inputState = WaitingForAnyButtonDown }
 
         ( WaitingForAnyButtonDown, Just origin ) ->
             onButtonPress gamepadId origin { model | inputState = WaitingForAllButtonsUp }
 
         ( WaitingForAnyButtonDown, Nothing ) ->
-            StillOpen model
+            StillOpen <| Model model
 
 
-noCmd model =
-    ( model, Cmd.none )
-
-
-update : Msg -> Model -> ( Outcome, Cmd Msg )
-update msg model =
+update : Msg -> Model entry -> Outcome entry
+update msg (Model model) =
     case msg of
         OnGamepad ( dt, blob ) ->
             case Gamepad.blobToRawGamepad model.gamepadIndex blob of
                 Nothing ->
-                    noCmd Disconnected
+                    Disconnected
 
                 Just rawGamepad ->
                     if not rawGamepad.connected then
-                        noCmd Disconnected
+                        Disconnected
                     else
-                        noCmd <| onMaybePressedButton (Gamepad.getId rawGamepad) (Gamepad.estimateOrigin rawGamepad) model
+                        onMaybePressedButton (Gamepad.getId rawGamepad) (Gamepad.estimateOrigin rawGamepad) model
 
 
 
 -- view
 
 
-view : Model -> Html Msg
-view model =
-    case model.unconfiguredEntries of
-        [] ->
-            text "All done! Press any button to continue!"
+currentEntry : Model entry -> Maybe entry
+currentEntry (Model model) =
+    List.head model.unconfiguredEntries
+        |> Maybe.map Tuple.second
 
-        currentEntry :: remainingEntries ->
-            text currentEntry.label
+
+view : Model String -> String
+view model =
+    currentEntry model
+        |> Maybe.withDefault "Controller configured. Press any button to continue!"
 
 
 
@@ -250,7 +235,7 @@ type alias PortSubscription msg =
     (( Time, Gamepad.Blob ) -> msg) -> Sub msg
 
 
-subscriptions : PortSubscription Msg -> Model -> Sub Msg
+subscriptions : PortSubscription Msg -> Model entry -> Sub Msg
 subscriptions portSubscription model =
     Sub.batch
         [ portSubscription OnGamepad
