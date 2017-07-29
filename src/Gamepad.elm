@@ -1,25 +1,67 @@
-module Gamepad exposing (..)
+module Gamepad
+    exposing
+        ( Gamepad
+        , Connection(..)
+        , Blob
+        , Database
+        , RawGamepad
+          --
+        , getGamepad
+        , getGamepadWithDatabase
+          -- recognised gamepad
+        , aIsPressed
+        , bIsPressed
+        , xIsPressed
+        , yIsPressed
+        , startIsPressed
+        , backIsPressed
+        , guideIsPressed
+        , dpadUp
+        , dpadDown
+        , dpadLeft
+        , dpadRight
+        , dpadX
+        , dpadY
+        , leftX
+        , leftY
+        , leftStickIsPressed
+        , leftShoulderIsPressed
+        , leftTriggerIsPressed
+        , leftTriggerValue
+        , rightX
+        , rightY
+        , rightStickIsPressed
+        , rightShoulderIsPressed
+        , rightTriggerIsPressed
+        , rightTriggerValue
+          -- advanced
+        , stringToDatabase
+        , destinationCodes
+        , getFeatures
+          -- raw gamepad
+        , blobToRawGamepad
+        , getId
+        , isConnected
+        , estimateOriginCode
+        )
 
 {-| @docs Gamepad
 -}
 
 import Array exposing (Array)
 import Dict exposing (Dict)
-import Gamepad.DefaultDb
-import Json.Decode as Decode exposing (Decoder)
+import Gamepad.DefaultDatabase
 import List.Extra
 import Regex
+import Set exposing (Set)
 import Time exposing (Time)
 
 
-{-
-   TODO:
-     * features : Gamepad -> Set Feature
--}
+type SourceType
+    = Axis
+    | Button
 
 
-{-| TODO constructor should be private
--}
 type Gamepad
     = Gamepad String RawGamepad
 
@@ -36,8 +78,7 @@ type Database
     = Database (Dict String String)
 
 
-{-| Can't really make this private, since it must come from a port
--}
+{-| -}
 type alias Blob =
     List (Maybe RawGamepad)
 
@@ -46,6 +87,13 @@ type alias RawButton =
     ( Bool, Float )
 
 
+{-| This record describes the raw data for a gamepad, as provided directly from the port.
+
+**Do not rely on its internals.**
+
+Instead, manipulate it with the provided functions.
+
+-}
 type alias RawGamepad =
     { axes : Array Float
     , buttons : Array RawButton
@@ -59,16 +107,11 @@ type alias RawGamepad =
 -- db helpers
 
 
-defaultDb : Database
-defaultDb =
-    dbDecoder Gamepad.DefaultDb.defaultDbAsString
-
-
-dbDecoder : String -> Database
-dbDecoder dbAsString =
+stringToDatabase : String -> Database
+stringToDatabase dbAsString =
     let
         stringToTuple dbEntry =
-            case String.split "```" dbEntry of
+            case String.split ",,," dbEntry of
                 [ id, mapping ] ->
                     Just ( id, mapping )
 
@@ -87,24 +130,18 @@ dbDecoder dbAsString =
 -- getGamepad helpers
 
 
-type SourceType
-    = Axis
-    | Button
-
-
-{-| TODO this function should be visible by Gamepad.Remap, but not elsewhere
--}
+{-| -}
 blobToRawGamepad : Int -> Blob -> Maybe RawGamepad
 blobToRawGamepad index blob =
     blob
         |> List.filterMap identity
         |> List.Extra.find (\g -> g.index == index)
-        |> Maybe.andThen isConnected
+        |> Maybe.andThen maybeIsConnected
 
 
-isConnected : RawGamepad -> Maybe RawGamepad
-isConnected rawGamepad =
-    if rawGamepad.connected then
+maybeIsConnected : RawGamepad -> Maybe RawGamepad
+maybeIsConnected rawGamepad =
+    if isConnected rawGamepad then
         Just rawGamepad
     else
         Nothing
@@ -220,16 +257,21 @@ getValue destinationCode (Gamepad mapping rawGamepad) =
 
 
 
--- public functions
+-- get gamepad
+
+
+defaultDatabase : Database
+defaultDatabase =
+    stringToDatabase Gamepad.DefaultDatabase.asString
 
 
 getGamepad : Blob -> Int -> Connection
 getGamepad =
-    getGamepadWithDb defaultDb
+    getGamepadWithDatabase defaultDatabase
 
 
-getGamepadWithDb : Database -> Blob -> Int -> Connection
-getGamepadWithDb (Database db) blob index =
+getGamepadWithDatabase : Database -> Blob -> Int -> Connection
+getGamepadWithDatabase (Database db) blob index =
     case blobToRawGamepad index blob of
         Nothing ->
             Disconnected
@@ -402,3 +444,107 @@ rightTriggerIsPressed =
 
 rightTriggerValue =
     getValue destinationCodes.rightTrigger
+
+
+
+--
+-- Mapping helpers
+--
+-- This code is used to get an estimate of the buttons/sticks the user is
+-- moving given a time series of RawGamepad states
+--
+
+
+{-| Buttons are always provided as a (isPressed, value) tuple.
+The function ignores one and uses only nd always the other.
+
+Is this a good assumption?
+Are there cases where both should be considered?
+
+-}
+buttonToEstimate : Int -> RawButton -> ( String, Float )
+buttonToEstimate originIndex ( isPressed, value ) =
+    if isPressed then
+        ( "b" ++ toString originIndex, 1 )
+    else
+        ( "b" ++ toString originIndex, 0 )
+
+
+axisToEstimate : Int -> Float -> ( String, Float )
+axisToEstimate originIndex value =
+    if value < 0 then
+        ( "-a" ++ toString originIndex, -value )
+    else
+        ( "a" ++ toString originIndex, value )
+
+
+addEstimate : ( String, Float ) -> Dict String Float -> Dict String Float
+addEstimate ( code, weight ) oldEstimates =
+    let
+        newWeight =
+            oldEstimates
+                |> Dict.get code
+                |> Maybe.withDefault 0
+                |> (+) weight
+    in
+        Dict.insert code newWeight oldEstimates
+
+
+addRawGamepadToEstimates : RawGamepad -> Dict String Float
+addRawGamepadToEstimates rawGamepad =
+    let
+        axesEstimates =
+            Array.indexedMap axisToEstimate rawGamepad.axes
+
+        buttonsEstimates =
+            Array.indexedMap buttonToEstimate rawGamepad.buttons
+    in
+        Array.append axesEstimates buttonsEstimates
+            |> Array.foldr addEstimate Dict.empty
+
+
+estimateThreshold : ( String, Float ) -> Maybe String
+estimateThreshold ( code, confidence ) =
+    if confidence < 0.5 then
+        Nothing
+    else
+        Just code
+
+
+{-| The function takes a gamepad state and returns a guess of the origin code
+currently activated by the player.
+-}
+estimateOriginCode : RawGamepad -> Maybe String
+estimateOriginCode gamepadState =
+    gamepadState
+        |> addRawGamepadToEstimates
+        |> Dict.toList
+        |> List.sortBy Tuple.second
+        |> List.reverse
+        |> List.head
+        |> Maybe.andThen estimateThreshold
+
+
+isConnected : RawGamepad -> Bool
+isConnected =
+    .connected
+
+
+getId : RawGamepad -> String
+getId =
+    .id
+
+
+getFeatures : Gamepad -> Set String
+getFeatures (Gamepad mapping raw) =
+    let
+        stripOrigin mappingEntry =
+            mappingEntry
+                |> String.split ":"
+                |> List.head
+                |> Maybe.withDefault ""
+    in
+        mapping
+            |> String.split ","
+            |> List.map stripOrigin
+            |> Set.fromList

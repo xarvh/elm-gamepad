@@ -1,105 +1,22 @@
-module Gamepad.Remap exposing (..)
+module Gamepad.Remap
+    exposing
+        ( MappableControl(..)
+        , Outcome(..)
+        , Model
+        , Msg
+        , init
+        , update
+        , view
+        , subscriptions
+        )
 
-import Array
-import Dict exposing (Dict)
 import Gamepad exposing (destinationCodes)
-import Gamepad.Visual
 import Html exposing (..)
 import List.Extra
 import Time exposing (Time)
 
 
---
--- Guess
---
--- This code is used to get an estimate of the buttons/sticks the user is
--- moving given a time series of RawGamepad states
---
--- TODO: move in its own module?
-
-
-{-| Buttons are always provided as a (isPressed, value) tuple.
-The function ignores one and uses only nd always the other.
-
-Is this a good assumption?
-Are there cases where both should be considered?
-
--}
-buttonToEstimate originIndex ( isPressed, value ) =
-    if isPressed then
-        ( "b" ++ toString originIndex, 1 )
-    else
-        ( "b" ++ toString originIndex, 0 )
-
-
-axisToEstimate originIndex value =
-    if value < 0 then
-        ( "-a" ++ toString originIndex, -value )
-    else
-        ( "a" ++ toString originIndex, value )
-
-
-addEstimate : ( String, Float ) -> Dict String Float -> Dict String Float
-addEstimate ( code, weight ) oldEstimates =
-    let
-        newWeight =
-            oldEstimates
-                |> Dict.get code
-                |> Maybe.withDefault 0
-                |> (+) weight
-    in
-        Dict.insert code newWeight oldEstimates
-
-
-addRawGamepadToEstimates : Gamepad.RawGamepad -> Dict String Float
-addRawGamepadToEstimates rawGamepad =
-    let
-        axesEstimates =
-            Array.indexedMap axisToEstimate rawGamepad.axes
-
-        buttonsEstimates =
-            Array.indexedMap buttonToEstimate rawGamepad.buttons
-    in
-        Array.append axesEstimates buttonsEstimates
-            |> Array.foldr addEstimate Dict.empty
-
-
-estimateThreshold : ( String, Float ) -> Maybe String
-estimateThreshold ( code, confidence ) =
-    if confidence < 0.5 then
-        Nothing
-    else
-        Just code
-
-
-{-| The function takes a gamepad state and returns a guess of the origin code
-currently activated by the player.
--}
-estimateOriginCode : Gamepad.RawGamepad -> Maybe String
-estimateOriginCode gamepadState =
-    gamepadState
-        |> addRawGamepadToEstimates
-        |> Dict.toList
-        |> List.sortBy Tuple.second
-        |> List.reverse
-        |> List.head
-        |> Maybe.andThen estimateThreshold
-
-
-someButtonsArePressed pad =
-    estimateThreshold pad /= Nothing
-
-
-noButtonsArePressed pad =
-    estimateThreshold pad == Nothing
-
-
-
-{-
-
-   TEA
-
--}
+-- types
 
 
 type MappableControl
@@ -118,6 +35,46 @@ type MappableControl
     | DpadDown
     | DpadLeft
     | DpadRight
+
+
+type Outcome
+    = StillOpen Model
+    | Disconnected
+    | Aborted
+    | Configured String
+
+
+type alias UnconfiguredEntry =
+    { destination : MappableControl
+    , label : String
+    }
+
+
+type alias ConfiguredEntry =
+    { destination : MappableControl
+    , originCode : String
+    }
+
+
+type InputState
+    = WaitingForAllButtonsUp
+    | WaitingForAnyButtonDown
+
+
+type alias Model =
+    { configuredEntries : List ConfiguredEntry
+    , inputState : InputState
+    , gamepadIndex : Int
+    , unconfiguredEntries : List UnconfiguredEntry
+    }
+
+
+type Msg
+    = OnGamepad ( Time, Gamepad.Blob )
+
+
+
+-- transforming configured entries into a configuration string
 
 
 mappableControlToDestinationCode : MappableControl -> String
@@ -169,44 +126,15 @@ mappableControlToDestinationCode mappableControl =
             destinationCodes.dpadRight
 
 
-
---
-
-
-type Outcome
-    = StillOpen Model
-    | Disconnected
-    | Aborted
-    | Configured String
-
-
-type alias UnconfiguredEntry =
-    { destination : MappableControl
-    , label : String
-    }
-
-
-type alias ConfiguredEntry =
-    { destination : MappableControl
-    , originCode : String
-    }
-
-
-type InputState
-    = WaitingForAllButtonsUp
-    | WaitingForAnyButtonDown
-
-
-type alias Model =
-    { configuredEntries : List ConfiguredEntry
-    , inputState : InputState
-    , gamepadIndex : Int
-    , unconfiguredEntries : List UnconfiguredEntry
-    }
-
-
-type Msg
-    = OnGamepad ( Time, Gamepad.Blob )
+configuredEntriesToGamepadConfigString : List ConfiguredEntry -> String
+configuredEntriesToGamepadConfigString entries =
+    let
+        entryToConfig entry =
+            mappableControlToDestinationCode entry.destination ++ ":" ++ entry.originCode
+    in
+        entries
+            |> List.map entryToConfig
+            |> String.join ","
 
 
 
@@ -238,19 +166,8 @@ init gamepadIndex controlNames =
 -- update
 
 
-configuredEntriesToGamepadConfigString : List ConfiguredEntry -> String
-configuredEntriesToGamepadConfigString entries =
-    let
-        entryToConfig entry =
-            mappableControlToDestinationCode entry.destination ++ ":" ++ entry.originCode
-    in
-        entries
-            |> List.map entryToConfig
-            |> String.join ","
-
-
 onButtonPress : String -> Model -> Outcome
-onButtonPress originCodeOfPressedButton model =
+onButtonPress originCode model =
     case model.unconfiguredEntries of
         [] ->
             Configured <| configuredEntriesToGamepadConfigString model.configuredEntries
@@ -259,7 +176,7 @@ onButtonPress originCodeOfPressedButton model =
             let
                 entryConfig =
                     { destination = currentEntry.destination
-                    , originCode = originCodeOfPressedButton
+                    , originCode = originCode
                     }
             in
                 StillOpen
@@ -269,17 +186,17 @@ onButtonPress originCodeOfPressedButton model =
                     }
 
 
-onGamepad : Time -> Gamepad.RawGamepad -> Model -> Outcome
-onGamepad dt rawGamepad model =
-    case ( model.inputState, estimateOriginCode rawGamepad ) of
-        ( WaitingForAllButtonsUp, Just originCodeOfPressedButton ) ->
+onMaybePressedButton : Time -> Maybe String -> Model -> Outcome
+onMaybePressedButton dt maybeOriginCode model =
+    case ( model.inputState, maybeOriginCode ) of
+        ( WaitingForAllButtonsUp, Just originCode ) ->
             StillOpen model
 
         ( WaitingForAllButtonsUp, Nothing ) ->
             StillOpen { model | inputState = WaitingForAnyButtonDown }
 
-        ( WaitingForAnyButtonDown, Just originCodeOfPressedButton ) ->
-            onButtonPress originCodeOfPressedButton { model | inputState = WaitingForAllButtonsUp }
+        ( WaitingForAnyButtonDown, Just originCode ) ->
+            onButtonPress originCode { model | inputState = WaitingForAllButtonsUp }
 
         ( WaitingForAnyButtonDown, Nothing ) ->
             StillOpen model
@@ -301,7 +218,7 @@ update msg model =
                     if not rawGamepad.connected then
                         noCmd Disconnected
                     else
-                        noCmd <| onGamepad dt rawGamepad model
+                        noCmd <| onMaybePressedButton dt (Gamepad.estimateOriginCode rawGamepad) model
 
 
 
