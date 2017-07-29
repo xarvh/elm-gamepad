@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Array
 import Gamepad
-import Gamepad.Remap
+import Gamepad.Remap exposing (MappableControl(..), Outcome(..))
 import GamepadPort
 import Html exposing (..)
 import Html.Attributes as HA
@@ -12,7 +12,7 @@ import Time exposing (Time)
 type alias Model =
     { time : Time
     , blob : Maybe Gamepad.Blob
-    , remap : Gamepad.Remap.Model
+    , remapOutcome : Gamepad.Remap.Outcome
     }
 
 
@@ -22,24 +22,62 @@ type Msg
 
 
 
---
+-- Mapping
 
 
-noCmd model =
-    ( model, Cmd.none )
+inputNames =
+    [ ( LeftX, "Move > Right" )
+    , ( LeftY, "Move ^ Up" )
+    , ( RightX, "Aim > Right" )
+    , ( RightY, "Aim ^ Up" )
+    , ( A, "Fire" )
+    , ( B, "Fire (alternate button)" )
+    ]
+
+
+moveX =
+    Gamepad.leftX
+
+
+moveY =
+    Gamepad.leftY
+
+
+aimX =
+    Gamepad.rightX
+
+
+aimY =
+    Gamepad.rightY
+
+
+shootIsPressed pad =
+    Gamepad.aIsPressed pad || Gamepad.bIsPressed pad
+
+
+
+-- init
 
 
 init =
     let
         ( remapModel, remapCmd ) =
-            Gamepad.Remap.initFullRemap 0
+            Gamepad.Remap.init 0 inputNames
     in
         ( { time = 0
           , blob = Nothing
-          , remap = remapModel
+          , remapOutcome = StillOpen remapModel
           }
         , Cmd.map OnRemapMsg remapCmd
         )
+
+
+
+-- update
+
+
+noCmd model =
+    ( model, Cmd.none )
 
 
 update msg model =
@@ -48,27 +86,20 @@ update msg model =
             noCmd { model | blob = Just blob }
 
         OnRemapMsg nestedMsg ->
-            let
-                ( outcome, cmd ) =
-                    Gamepad.Remap.update nestedMsg model.remap
+            case model.remapOutcome of
+                StillOpen nestedModel ->
+                    let
+                        ( outcome, cmd ) =
+                            Gamepad.Remap.update nestedMsg nestedModel
+                    in
+                        ( { model | remapOutcome = outcome }, cmd |> Cmd.map OnRemapMsg )
 
-                newModel =
-                    case outcome of
-                        Gamepad.Remap.StillOpen nestedModel ->
-                            { model | remap = nestedModel }
-
-                        Gamepad.Remap.Done config ->
-                            let
-                                q =
-                                    Debug.log "config ->" config
-                            in
-                                model
-            in
-                ( newModel, Cmd.map OnRemapMsg cmd )
+                _ ->
+                    noCmd model
 
 
 
---
+-- view
 
 
 viewGamepad : Gamepad.Connection -> Html msg
@@ -81,32 +112,36 @@ viewGamepad connection =
             text "not recognised"
 
         Gamepad.Available pad ->
-            [ ( "a", Gamepad.aIsPressed >> toString )
-            , ( "b", Gamepad.bIsPressed >> toString )
-            , ( "x", Gamepad.xIsPressed >> toString )
-            , ( "y", Gamepad.yIsPressed >> toString )
+            let
+                ts ( name, getter ) =
+                    toString name ++ ": " ++ toString (getter pad)
+            in
+                [ ts ( A, Gamepad.aIsPressed )
+                , ts ( B, Gamepad.bIsPressed )
+                , ts ( X, Gamepad.xIsPressed )
+                , ts ( Y, Gamepad.yIsPressed )
 
-            --
-            , ( "start", Gamepad.startIsPressed >> toString )
-            , ( "back", Gamepad.backIsPressed >> toString )
-            , ( "guide", Gamepad.guideIsPressed >> toString )
+                --
+                , ts ( Start, Gamepad.startIsPressed )
+                , ts ( Back, Gamepad.backIsPressed )
+                , ts ( Guide, Gamepad.guideIsPressed )
 
-            --
-            , ( "leftX", Gamepad.leftX >> toString )
-            , ( "leftY", Gamepad.leftY >> toString )
-            , ( "rightX", Gamepad.rightX >> toString )
-            , ( "rightY", Gamepad.rightY >> toString )
+                --
+                , ts ( LeftX, Gamepad.leftX )
+                , ts ( LeftY, Gamepad.leftY )
+                , ts ( RightX, Gamepad.rightX )
+                , ts ( RightY, Gamepad.rightY )
 
-            --
-            , ( "dpadUp", Gamepad.dpadUp >> toString )
-            , ( "dpadDown", Gamepad.dpadDown >> toString )
-            , ( "dpadLeft", Gamepad.dpadLeft >> toString )
-            , ( "dpadRight", Gamepad.dpadRight >> toString )
-            , ( "dpadX", Gamepad.dpadX >> toString)
-            , ( "dpadY", Gamepad.dpadY >> toString)
-            ]
-                |> List.map (\( s, f ) -> div [] [ text s, text ": ", text <| f pad ])
-                |> div []
+                --
+                , ts ( DpadUp, Gamepad.dpadUp )
+                , ts ( DpadDown, Gamepad.dpadDown )
+                , ts ( DpadLeft, Gamepad.dpadLeft )
+                , ts ( DpadRight, Gamepad.dpadRight )
+                , ts ( "dpadX", Gamepad.dpadX )
+                , ts ( "dpadY", Gamepad.dpadY )
+                ]
+                    |> List.map (\s -> div [] [ text s ])
+                    |> div []
 
 
 showRaw raw =
@@ -114,6 +149,31 @@ showRaw raw =
         |> Array.toList
         |> List.indexedMap (\index b -> div [] [ text <| (toString index) ++ " " ++ (toString b) ])
         |> div []
+
+
+viewRemap model =
+    div
+        [ HA.style
+            [ ( "display", "flex" )
+            , ( "justify-content", "center" )
+            , ( "width", "100%" )
+            ]
+        ]
+        [ case model.remapOutcome of
+            Configured string ->
+                code
+                    []
+                    [ text string ]
+
+            Aborted ->
+                text "aborted"
+
+            Disconnected ->
+                text "disconnected"
+
+            StillOpen nestedModel ->
+                Gamepad.Remap.view nestedModel
+        ]
 
 
 view model =
@@ -124,14 +184,7 @@ view model =
         Just blob ->
             div
                 []
-                [ div
-                    [ HA.style
-                        [ ( "display", "flex" )
-                        , ( "justify-content", "center" )
-                        , ( "width", "100%" )
-                        ]
-                    ]
-                    [ Gamepad.Remap.view model.remap |> Html.map OnRemapMsg ]
+                [ viewRemap model |> Html.map OnRemapMsg
                 , List.range 0 3
                     |> List.map (Gamepad.getGamepad blob)
                     |> List.map viewGamepad
@@ -151,7 +204,12 @@ view model =
 subscriptions model =
     Sub.batch
         [ GamepadPort.gamepad OnGamepad
-        , Gamepad.Remap.subscriptions GamepadPort.gamepad model.remap |> Sub.map OnRemapMsg
+        , case model.remapOutcome of
+            StillOpen nestedModel ->
+                Gamepad.Remap.subscriptions GamepadPort.gamepad nestedModel |> Sub.map OnRemapMsg
+
+            _ ->
+                Sub.none
         ]
 
 

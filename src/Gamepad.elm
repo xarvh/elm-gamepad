@@ -87,7 +87,7 @@ dbDecoder dbAsString =
 -- getGamepad helpers
 
 
-type InputType
+type SourceType
     = Axis
     | Button
 
@@ -110,7 +110,7 @@ isConnected rawGamepad =
         Nothing
 
 
-stringToInputType : String -> Maybe InputType
+stringToInputType : String -> Maybe SourceType
 stringToInputType s =
     case s of
         "a" ->
@@ -133,7 +133,7 @@ maybeToReverse maybeReverse =
             False
 
 
-regexMatchToInputTuple : Regex.Match -> Maybe ( InputType, Int, Bool )
+regexMatchToInputTuple : Regex.Match -> Maybe ( SourceType, Int, Bool )
 regexMatchToInputTuple match =
     case match.submatches of
         _ :: maybeReverse :: (Just inputTypeAsString) :: (Just indexAsString) :: _ ->
@@ -146,11 +146,11 @@ regexMatchToInputTuple match =
             Nothing
 
 
-mappingToRawIndex : String -> String -> Maybe ( InputType, Int, Bool )
-mappingToRawIndex inputCode mapping =
+mappingToRawIndex : String -> String -> Maybe ( SourceType, Int, Bool )
+mappingToRawIndex destinationCode mapping =
     let
         regex =
-            "(^|,)" ++ inputCode ++ ":(-)?([a-z]?)([0-9]?)(,|$)"
+            "(^|,)" ++ destinationCode ++ ":(-)?([a-z]?)([0-9]?)(,|$)"
     in
         mapping
             |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
@@ -184,8 +184,8 @@ reverseAxis isReverse n =
 
 
 isPressed : String -> Gamepad -> Bool
-isPressed inputCode (Gamepad mapping rawGamepad) =
-    case mappingToRawIndex inputCode mapping of
+isPressed destinationCode (Gamepad mapping rawGamepad) =
+    case mappingToRawIndex destinationCode mapping of
         Nothing ->
             False
 
@@ -202,8 +202,8 @@ isPressed inputCode (Gamepad mapping rawGamepad) =
 
 
 getValue : String -> Gamepad -> Float
-getValue inputCode (Gamepad mapping rawGamepad) =
-    case mappingToRawIndex inputCode mapping of
+getValue destinationCode (Gamepad mapping rawGamepad) =
+    case mappingToRawIndex destinationCode mapping of
         Nothing ->
             0
 
@@ -244,23 +244,52 @@ getGamepadWithDb (Database db) blob index =
 
 
 
+-- destination codes
+
+
+destinationCodes =
+    { a = "a"
+    , b = "b"
+    , x = "x"
+    , y = "y"
+    , start = "start"
+    , back = "back"
+    , guide = "guide"
+    , leftX = "leftx"
+    , leftY = "lefty"
+    , leftStick = "leftstick"
+    , leftShoulder = "leftshoulder"
+    , leftTrigger = "lefttrigger"
+    , rightX = "rightx"
+    , rightY = "righty"
+    , rightStick = "rightstick"
+    , rightShoulder = "rightshoulder"
+    , rightTrigger = "righttrigger"
+    , dpadUp = "dpadup"
+    , dpadDown = "dpaddown"
+    , dpadLeft = "dpadleft"
+    , dpadRight = "dpadright"
+    }
+
+
+
 -- face buttons
 
 
 aIsPressed =
-    isPressed "a"
+    isPressed destinationCodes.a
 
 
 bIsPressed =
-    isPressed "b"
+    isPressed destinationCodes.b
 
 
 xIsPressed =
-    isPressed "x"
+    isPressed destinationCodes.x
 
 
 yIsPressed =
-    isPressed "y"
+    isPressed destinationCodes.y
 
 
 
@@ -268,15 +297,15 @@ yIsPressed =
 
 
 startIsPressed =
-    isPressed "start"
+    isPressed destinationCodes.start
 
 
 backIsPressed =
-    isPressed "back"
+    isPressed destinationCodes.back
 
 
 guideIsPressed =
-    isPressed "guide"
+    isPressed destinationCodes.guide
 
 
 
@@ -284,19 +313,19 @@ guideIsPressed =
 
 
 dpadUp =
-    isPressed "dpup"
+    isPressed destinationCodes.dpadUp
 
 
 dpadDown =
-    isPressed "dpdown"
+    isPressed destinationCodes.dpadDown
 
 
 dpadLeft =
-    isPressed "dpleft"
+    isPressed destinationCodes.dpadLeft
 
 
 dpadRight =
-    isPressed "dpright"
+    isPressed destinationCodes.dpadRight
 
 
 dpadX : Gamepad -> Int
@@ -312,9 +341,9 @@ dpadX pad =
 dpadY : Gamepad -> Int
 dpadY pad =
     if dpadUp pad then
-        -1
-    else if dpadDown pad then
         1
+    else if dpadDown pad then
+        -1
     else
         0
 
@@ -324,27 +353,27 @@ dpadY pad =
 
 
 leftX =
-    getValue "leftx"
+    getValue destinationCodes.leftX
 
 
 leftY =
-    getValue "lefty"
+    getValue destinationCodes.leftY
 
 
 leftStickIsPressed =
-    isPressed "leftstick"
+    isPressed destinationCodes.leftStick
 
 
 leftShoulderIsPressed =
-    isPressed "lefttrigger"
+    isPressed destinationCodes.leftShoulder
 
 
 leftTriggerIsPressed =
-    isPressed "lefttrigger"
+    isPressed destinationCodes.leftTrigger
 
 
 leftTriggerValue =
-    getValue "lefttrigger"
+    getValue destinationCodes.leftTrigger
 
 
 
@@ -352,24 +381,24 @@ leftTriggerValue =
 
 
 rightX =
-    getValue "rightx"
+    getValue destinationCodes.rightX
 
 
 rightY =
-    getValue "righty"
+    getValue destinationCodes.rightY
 
 
 rightStickIsPressed =
-    isPressed "rightstick"
+    isPressed destinationCodes.rightStick
 
 
 rightShoulderIsPressed =
-    isPressed "righttrigger"
+    isPressed destinationCodes.rightShoulder
 
 
 rightTriggerIsPressed =
-    isPressed "righttrigger"
+    isPressed destinationCodes.rightTrigger
 
 
 rightTriggerValue =
-    getValue "righttrigger"
+    getValue destinationCodes.rightTrigger
