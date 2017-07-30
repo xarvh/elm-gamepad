@@ -37,7 +37,7 @@ type Msg
 -- Mapping
 
 
-controlsToMap =
+controlsForASpecificProgram =
     [ ( LeftUp, "Move Up" )
     , ( LeftDown, "Move Down" )
     , ( LeftLeft, "Move Left" )
@@ -45,6 +45,39 @@ controlsToMap =
     , ( RightTrigger, "Fire" )
     , ( LeftTrigger, "Alternate Fire" )
     ]
+
+
+allMappableControls =
+    [ ( A, "Button A / Cross" )
+    , ( B, "Button B / Circle" )
+    , ( X, "Button X / Square" )
+    , ( Y, "Button Y / Triangle" )
+    , ( Start, "Button Start" )
+    , ( Back, "Button Back / Select" )
+    , ( Guide, "Guide / Logo / Home" )
+    , ( LeftLeft, "Left Stick: Push Left" )
+    , ( LeftRight, "Left Stick: Push Right" )
+    , ( LeftUp, "Left Stick: Push Up" )
+    , ( LeftDown, "Left Stick: Push Down" )
+    , ( LeftStick, "Left Stick: Click" )
+    , ( LeftShoulder, "Left Shoulder Button" )
+    , ( LeftTrigger, "Left Trigger / Left Analog Lever" )
+    , ( RightLeft, "Right Stick: Push Left" )
+    , ( RightRight, "Right Stick: Push Right" )
+    , ( RightUp, "Right Stick: Push Up" )
+    , ( RightDown, "Right Stick: Push Down" )
+    , ( RightStick, "Right Stick: Click" )
+    , ( RightShoulder, "Right Shoulder Button" )
+    , ( RightTrigger, "Right Trigger / Right Analog Lever" )
+    , ( DpadUp, "Digital Pad Up" )
+    , ( DpadDown, "Digital Pad Down" )
+    , ( DpadLeft, "Digital Pad Left" )
+    , ( DpadRight, "Digital Pad Right" )
+    ]
+
+
+controlsToMap =
+    allMappableControls
 
 
 
@@ -173,12 +206,27 @@ viewGamepadsBlob model blob =
                     []
                     [ ul
                         []
-                        [ vc Gamepad.leftX "Move X"
-                        , vc Gamepad.leftY "Move Y"
-                        , vc Gamepad.leftTriggerValue "Alternate Fire (analog)"
-                        , vc Gamepad.leftTriggerIsPressed "Alternate Fire (digital)"
-                        , vc Gamepad.rightTriggerValue "Fire (analog)"
-                        , vc Gamepad.rightTriggerIsPressed "Fire (digital)"
+                        [ vc Gamepad.aIsPressed "A"
+                        , vc Gamepad.bIsPressed "B"
+                        , vc Gamepad.xIsPressed "X"
+                        , vc Gamepad.yIsPressed "Y"
+                        , vc Gamepad.startIsPressed "Start"
+                        , vc Gamepad.backIsPressed "Back"
+                        , vc Gamepad.guideIsPressed "Guide"
+                        , vc Gamepad.dpadX "Dpad X"
+                        , vc Gamepad.dpadY "Dpad Y"
+                        , vc Gamepad.leftX "Left X"
+                        , vc Gamepad.leftY "Left Y"
+                        , vc Gamepad.leftStickIsPressed "Left Stick"
+                        , vc Gamepad.leftShoulderIsPressed "Left Shoulder"
+                        , vc Gamepad.leftTriggerIsPressed "Left Trigger (digital)"
+                        , vc Gamepad.leftTriggerValue "Left Trigger (analog)"
+                        , vc Gamepad.rightX "Right X"
+                        , vc Gamepad.rightY "Right Y"
+                        , vc Gamepad.rightStickIsPressed "Right Stick"
+                        , vc Gamepad.rightShoulderIsPressed "Right Shoulder"
+                        , vc Gamepad.rightTriggerIsPressed "Right Trigger (digital)"
+                        , vc Gamepad.rightTriggerValue "Right Trigger (analog)"
                         ]
                     , div
                         []
@@ -216,7 +264,7 @@ view model =
                         [ text <| "----> " ++ Gamepad.Remap.view remapModel ++ " <----" ]
                     , div
                         []
-                        [ text "(Press SPACE to skip)" ]
+                        [ text "(Press SPACE if you don't have this button)" ]
                     ]
 
             Display maybeGamepadsBlob ->
