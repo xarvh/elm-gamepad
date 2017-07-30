@@ -1,32 +1,41 @@
 module Main exposing (..)
 
 import Array
-import Dict
+import Dict exposing (Dict)
 import Gamepad
 import Gamepad.Remap exposing (MappableControl(..), Outcome(..))
 import GamepadPort
 import Html exposing (..)
-import Html.Attributes as HA
+import Html.Attributes
+import Html.Events
+import LocalStoragePort
 import Time exposing (Time)
 
 
+type State
+    = Message String
+    | Remapping (Gamepad.Remap.Model String)
+    | DisplayInputs (List ( String, String ))
+
+
 type alias Model =
-    { time : Time
-    , blob : Maybe Gamepad.Blob
-    , remapOutcome : Gamepad.Remap.Outcome
+    { customMaps : Dict String Gamepad.CustomMap
+    , state : State
     }
 
 
 type Msg
     = OnGamepad ( Time, Gamepad.Blob )
     | OnRemapMsg Gamepad.Remap.Msg
+    | OnStartRemapping
+    | OnContinue
 
 
 
 -- Mapping
 
 
-inputNames =
+controlsToMap =
     [ ( LeftUp, "up" )
     , ( LeftDown, "down" )
     , ( LeftLeft, "left" )
@@ -38,102 +47,159 @@ inputNames =
 -- init
 
 
-init =
-    noCmd
-        { time = 0
-        , blob = Nothing
-        , remapOutcome = StillOpen <| Gamepad.Remap.init 0 inputNames
-        }
+init : String -> ( Model, Cmd Msg )
+init gamepadCustomMapsAsString =
+    let
+        q =
+            Debug.log "xxx" gamepadCustomMapsAsString
+    in
+        noCmd
+            { customMaps = Gamepad.customMapsFromString gamepadCustomMapsAsString |> Result.withDefault Dict.empty
+            , state = DisplayInputs []
+            }
 
 
 
 -- update
 
 
+updateRemap : Gamepad.Remap.Outcome String -> Model -> ( Model, Cmd Msg )
+updateRemap remapOutcome model =
+    case remapOutcome of
+        StillOpen remapModel ->
+            noCmd { model | state = Remapping remapModel }
+
+        Aborted ->
+            noCmd { model | state = Message "Remapping aborted by user" }
+
+        Disconnected ->
+            noCmd { model | state = Message "Controller disconnected" }
+
+        Configured gamepadId customMap ->
+            let
+                newMaps =
+                    Dict.insert gamepadId customMap model.customMaps
+
+                newMapsAsString =
+                    Gamepad.customMapsToString newMaps
+
+                cmd =
+                    LocalStoragePort.set "gamepadCustomMaps" newMapsAsString
+
+                newModel =
+                    { model | state = Message "Successfully configured", customMaps = newMaps }
+            in
+                ( newModel, cmd )
+
+
+updateInputDisplay : Gamepad.Blob -> Model -> Model
+updateInputDisplay gamepadsBlob model =
+    case Gamepad.getGamepad model.customMaps gamepadsBlob 0 of
+        Gamepad.Disconnected ->
+            { model | state = Message "Gamepad 1 is disconnected" }
+
+        Gamepad.Unrecognised ->
+            { model | state = Message "I don't know any mapping for Gamepad 1, but you can configure it!" }
+
+        Gamepad.Available gamepad ->
+            let
+                inputs =
+                    [ ( "woot", "yeah" ) ]
+            in
+                { model | state = DisplayInputs inputs }
+
+
 noCmd model =
     ( model, Cmd.none )
 
 
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        OnGamepad ( time, blob ) ->
-            noCmd { model | blob = Just blob }
+    case ( msg, model.state ) of
+        ( OnRemapMsg remapMsg, Remapping remapModel ) ->
+            updateRemap (Gamepad.Remap.update remapMsg remapModel) model
 
-        OnRemapMsg nestedMsg ->
-            case model.remapOutcome of
-                StillOpen nestedModel ->
-                    noCmd { model | remapOutcome = Gamepad.Remap.update nestedMsg nestedModel }
+        ( OnGamepad ( time, gamepadsBlob ), DisplayInputs _ ) ->
+            noCmd <| updateInputDisplay gamepadsBlob model
 
-                _ ->
-                    noCmd model
+        ( OnStartRemapping, _ ) ->
+            noCmd { model | state = Remapping <| Gamepad.Remap.init 0 controlsToMap }
+
+        ( OnContinue, _ ) ->
+            noCmd { model | state = DisplayInputs [] }
+
+        ( _, _ ) ->
+            noCmd model
 
 
 
 -- view
 
 
-viewGamepad : Gamepad.Connection -> Html msg
-viewGamepad connection =
-    case connection of
-        Gamepad.Disconnected ->
-            text "disconnected"
-
-        Gamepad.Unrecognised ->
-            text "not recognised"
-
-        Gamepad.Available pad ->
-            let
-                ts ( name, getter ) =
-                    toString name ++ ": " ++ toString (getter pad)
-            in
-                [ ts ( "X", Gamepad.leftX )
-                , ts ( "Y", Gamepad.leftY )
-                ]
-                    |> List.map (\s -> div [] [ text s ])
-                    |> div []
+viewInput ( name, value ) =
+    li
+        []
+        [ text <| name ++ "  " ++ value ]
 
 
-showRaw raw =
-    raw.buttons
-        |> Array.toList
-        |> List.indexedMap (\index b -> div [] [ text <| (toString index) ++ " " ++ (toString b) ])
-        |> div []
+remapButton =
+    button
+        [ Html.Events.onClick OnStartRemapping ]
+        [ text "Start remapping" ]
 
 
+view : Model -> Html Msg
 view model =
-    case model.blob of
-        Nothing ->
-            text ""
+    div
+        []
+        [ div
+            []
+            [ text <| toString (Dict.size model.customMaps) ++ " custom gamepad maps" ]
+        , case model.state of
+            Message message ->
+                div
+                    []
+                    [ div
+                        []
+                        [ text message ]
+                    , div
+                        []
+                        [ button
+                            [ Html.Events.onClick OnContinue ]
+                            [ text "Continue" ]
+                        ]
+                    , div
+                        []
+                        [ remapButton ]
+                    ]
 
-        Just blob ->
-            case model.remapOutcome of
-                Gamepad.Remap.StillOpen nestedModel ->
-                    text <| Gamepad.Remap.view nestedModel
+            Remapping remapModel ->
+                div [] [ text <| Gamepad.Remap.view remapModel ]
 
-                Gamepad.Remap.Configured gamepadId customMap ->
-                    let
-                        q =
-                            Debug.log "--" customMap
-
-                        customMaps =
-                            Dict.fromList [ ( gamepadId, customMap ) ]
-                    in
-                        viewGamepad <| Gamepad.getGamepad customMaps blob 0
-
-                _ ->
-                    text "Meh"
+            DisplayInputs inputs ->
+                div
+                    []
+                    [ ul
+                        []
+                        (List.map viewInput inputs)
+                    , div
+                        []
+                        [ remapButton ]
+                    ]
+        ]
 
 
 
 -- subscriptions
 
 
+subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ GamepadPort.gamepad OnGamepad
-        , case model.remapOutcome of
-            StillOpen nestedModel ->
-                Gamepad.Remap.subscriptions GamepadPort.gamepad nestedModel |> Sub.map OnRemapMsg
+        , case model.state of
+            Remapping remapModel ->
+                Gamepad.Remap.subscriptions GamepadPort.gamepad remapModel |> Sub.map OnRemapMsg
 
             _ ->
                 Sub.none
@@ -144,8 +210,9 @@ subscriptions model =
 -- main
 
 
+main : Program String Model Msg
 main =
-    Html.program
+    Html.programWithFlags
         { init = init
         , update = update
         , subscriptions = subscriptions

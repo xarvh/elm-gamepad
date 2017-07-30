@@ -10,11 +10,13 @@
 
     <script type="text/javascript" src="app.js"></script>
     <script type="text/javascript" src="gamepadPort.js"></script>
+    <script type="text/javascript" src="localStoragePort.js"></script>
   </head>
   <body>
     <script type="text/javascript">
-      var elmApp = Elm.Main.fullscreen();
+      var elmApp = Elm.Main.fullscreen(localStorage["gamepadCustomMaps"] || "");
       addGamepadPort(elmApp);
+      addLocalStoragePorts(elmApp);
     </script>
   </body>
 </html>
