@@ -16,7 +16,7 @@ import Time exposing (Time)
 type State
     = Message String
     | Remapping (Gamepad.Remap.Model String)
-    | DisplayInputs (List ( String, String ))
+    | Display (Maybe Gamepad.Blob)
 
 
 type alias Model =
@@ -38,10 +38,12 @@ type Msg
 
 
 controlsToMap =
-    [ ( LeftUp, "up" )
-    , ( LeftDown, "down" )
-    , ( LeftLeft, "left" )
-    , ( LeftRight, "right" )
+    [ ( LeftUp, "Move Up" )
+    , ( LeftDown, "Move Down" )
+    , ( LeftLeft, "Move Left" )
+    , ( LeftRight, "Move Right" )
+    , ( RightTrigger, "Fire" )
+    , ( LeftTrigger, "Alternate Fire" )
     ]
 
 
@@ -53,7 +55,7 @@ init : String -> ( Model, Cmd Msg )
 init gamepadCustomMapsAsString =
     noCmd
         { customMaps = Gamepad.customMapsFromString gamepadCustomMapsAsString |> Result.withDefault Dict.empty
-        , state = DisplayInputs []
+        , state = Display Nothing
         }
 
 
@@ -87,23 +89,6 @@ updateRemap remapOutcome model =
                 ( newModel, cmd )
 
 
-updateInputDisplay : Gamepad.Blob -> Model -> Model
-updateInputDisplay gamepadsBlob model =
-    case Gamepad.getGamepad model.customMaps gamepadsBlob 0 of
-        Gamepad.Disconnected ->
-            { model | state = Message "Gamepad 1 is disconnected" }
-
-        Gamepad.Unrecognised ->
-            { model | state = Message "I don't know any mapping for Gamepad 1, but you can configure it!" }
-
-        Gamepad.Available gamepad ->
-            let
-                inputs =
-                    [ ( "woot", "yeah" ) ]
-            in
-                { model | state = DisplayInputs inputs }
-
-
 noCmd model =
     ( model, Cmd.none )
 
@@ -118,7 +103,7 @@ update msg model =
             case keyCode of
                 -- Esc: abort remapping
                 27 ->
-                    noCmd { model | state = DisplayInputs [] }
+                    noCmd { model | state = Display Nothing }
 
                 -- Space: skip current entry
                 32 ->
@@ -127,14 +112,14 @@ update msg model =
                 _ ->
                     noCmd model
 
-        ( OnGamepad ( time, gamepadsBlob ), DisplayInputs _ ) ->
-            noCmd <| updateInputDisplay gamepadsBlob model
+        ( OnGamepad ( time, gamepadsBlob ), Display _ ) ->
+            noCmd <| { model | state = Display (Just gamepadsBlob) }
 
         ( OnStartRemapping, _ ) ->
             noCmd { model | state = Remapping <| Gamepad.Remap.init 0 controlsToMap }
 
         ( OnContinue, _ ) ->
-            noCmd { model | state = DisplayInputs [] }
+            noCmd { model | state = Display Nothing }
 
         ( _, _ ) ->
             noCmd model
@@ -154,6 +139,51 @@ remapButton =
     button
         [ Html.Events.onClick OnStartRemapping ]
         [ text "Remap" ]
+
+
+viewControl gamepad getter name =
+    let
+        value =
+            getter gamepad |> toString
+    in
+        li
+            []
+            [ text <| name ++ ": " ++ value ]
+
+
+viewGamepadsBlob : Model -> Gamepad.Blob -> Html Msg
+viewGamepadsBlob model blob =
+    case Gamepad.getGamepad model.customMaps blob 0 of
+        Gamepad.Disconnected ->
+            text "disconnected"
+
+        Gamepad.Unrecognised ->
+            div
+              []
+              [ text "I don't know any mapping for this gamepad, but you can remap it."
+              , remapButton
+              ]
+
+        Gamepad.Available gamepad ->
+            let
+                vc =
+                    viewControl gamepad
+            in
+                div
+                    []
+                    [ ul
+                        []
+                        [ vc Gamepad.leftX "Move X"
+                        , vc Gamepad.leftY "Move Y"
+                        , vc Gamepad.leftTriggerValue "Alternate Fire (analog)"
+                        , vc Gamepad.leftTriggerIsPressed "Alternate Fire (digital)"
+                        , vc Gamepad.rightTriggerValue "Fire (analog)"
+                        , vc Gamepad.rightTriggerIsPressed "Fire (digital)"
+                        ]
+                    , div
+                        []
+                        [ remapButton ]
+                    ]
 
 
 view : Model -> Html Msg
@@ -181,16 +211,13 @@ view model =
             Remapping remapModel ->
                 div [] [ text <| Gamepad.Remap.view remapModel ]
 
-            DisplayInputs inputs ->
-                div
-                    []
-                    [ ul
-                        []
-                        (List.map viewInput inputs)
-                    , div
-                        []
-                        [ remapButton ]
-                    ]
+            Display maybeGamepadsBlob ->
+                case maybeGamepadsBlob of
+                    Nothing ->
+                        text "Waiting..."
+
+                    Just gamepadsBlob ->
+                        viewGamepadsBlob model gamepadsBlob
         ]
 
 
