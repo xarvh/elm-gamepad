@@ -159,10 +159,10 @@ viewGamepadsBlob model blob =
 
         Gamepad.Unrecognised ->
             div
-              []
-              [ text "I don't know any mapping for this gamepad, but you can remap it."
-              , remapButton
-              ]
+                []
+                [ text "I don't know any mapping for this gamepad, but you can remap it."
+                , remapButton
+                ]
 
         Gamepad.Available gamepad ->
             let
@@ -190,10 +190,7 @@ view : Model -> Html Msg
 view model =
     div
         []
-        [ div
-            []
-            [ text <| toString (Dict.size model.customMaps) ++ " custom gamepad maps" ]
-        , case model.state of
+        [ case model.state of
             Message message ->
                 div
                     []
@@ -209,15 +206,35 @@ view model =
                     ]
 
             Remapping remapModel ->
-                div [] [ text <| Gamepad.Remap.view remapModel ]
+                div
+                    []
+                    [ div
+                        []
+                        [ text "Press the button you want to use for:" ]
+                    , div
+                        []
+                        [ text <| "----> " ++ Gamepad.Remap.view remapModel ++ " <----" ]
+                    , div
+                        []
+                        [ text "(Press SPACE to skip)" ]
+                    ]
 
             Display maybeGamepadsBlob ->
-                case maybeGamepadsBlob of
-                    Nothing ->
-                        text "Waiting..."
+                div
+                    []
+                    [ div
+                        []
+                        [ text <| toString (Dict.size model.customMaps) ++ " custom gamepad maps" ]
+                    , div
+                        []
+                        [ case maybeGamepadsBlob of
+                            Nothing ->
+                                text "Waiting..."
 
-                    Just gamepadsBlob ->
-                        viewGamepadsBlob model gamepadsBlob
+                            Just gamepadsBlob ->
+                                viewGamepadsBlob model gamepadsBlob
+                        ]
+                    ]
         ]
 
 
