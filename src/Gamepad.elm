@@ -51,7 +51,6 @@ module Gamepad
 
 import Array exposing (Array)
 import Dict exposing (Dict)
-import Gamepad.DefaultDatabase
 import List.Extra
 import Regex
 import Set exposing (Set)
