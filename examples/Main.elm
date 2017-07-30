@@ -8,6 +8,7 @@ import GamepadPort
 import Html exposing (..)
 import Html.Attributes
 import Html.Events
+import Keyboard
 import LocalStoragePort
 import Time exposing (Time)
 
@@ -29,6 +30,7 @@ type Msg
     | OnRemapMsg Gamepad.Remap.Msg
     | OnStartRemapping
     | OnContinue
+    | OnKey Keyboard.KeyCode
 
 
 
@@ -49,14 +51,10 @@ controlsToMap =
 
 init : String -> ( Model, Cmd Msg )
 init gamepadCustomMapsAsString =
-    let
-        q =
-            Debug.log "xxx" gamepadCustomMapsAsString
-    in
-        noCmd
-            { customMaps = Gamepad.customMapsFromString gamepadCustomMapsAsString |> Result.withDefault Dict.empty
-            , state = DisplayInputs []
-            }
+    noCmd
+        { customMaps = Gamepad.customMapsFromString gamepadCustomMapsAsString |> Result.withDefault Dict.empty
+        , state = DisplayInputs []
+        }
 
 
 
@@ -69,11 +67,8 @@ updateRemap remapOutcome model =
         StillOpen remapModel ->
             noCmd { model | state = Remapping remapModel }
 
-        Aborted ->
-            noCmd { model | state = Message "Remapping aborted by user" }
-
-        Disconnected ->
-            noCmd { model | state = Message "Controller disconnected" }
+        Error message ->
+            noCmd { model | state = Message <| "Error: " ++ message }
 
         Configured gamepadId customMap ->
             let
@@ -119,6 +114,19 @@ update msg model =
         ( OnRemapMsg remapMsg, Remapping remapModel ) ->
             updateRemap (Gamepad.Remap.update remapMsg remapModel) model
 
+        ( OnKey keyCode, Remapping remapModel ) ->
+            case keyCode of
+                -- Esc: abort remapping
+                27 ->
+                    noCmd { model | state = DisplayInputs [] }
+
+                -- Space: skip current entry
+                32 ->
+                    updateRemap (Gamepad.Remap.skipCurrentEntry remapModel) model
+
+                _ ->
+                    noCmd model
+
         ( OnGamepad ( time, gamepadsBlob ), DisplayInputs _ ) ->
             noCmd <| updateInputDisplay gamepadsBlob model
 
@@ -145,7 +153,7 @@ viewInput ( name, value ) =
 remapButton =
     button
         [ Html.Events.onClick OnStartRemapping ]
-        [ text "Start remapping" ]
+        [ text "Remap" ]
 
 
 view : Model -> Html Msg
@@ -166,11 +174,8 @@ view model =
                         []
                         [ button
                             [ Html.Events.onClick OnContinue ]
-                            [ text "Continue" ]
+                            [ text "Go back to display" ]
                         ]
-                    , div
-                        []
-                        [ remapButton ]
                     ]
 
             Remapping remapModel ->
@@ -197,6 +202,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ GamepadPort.gamepad OnGamepad
+        , Keyboard.ups OnKey
         , case model.state of
             Remapping remapModel ->
                 Gamepad.Remap.subscriptions GamepadPort.gamepad remapModel |> Sub.map OnRemapMsg

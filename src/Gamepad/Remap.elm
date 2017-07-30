@@ -4,10 +4,11 @@ module Gamepad.Remap
         , Outcome(..)
         , Model
         , Msg
+        , currentEntry
+        , skipCurrentEntry
         , init
         , update
         , view
-        , currentEntry
         , subscriptions
         )
 
@@ -49,8 +50,7 @@ type MappableControl
 
 type Outcome entry
     = StillOpen (Model entry)
-    | Disconnected
-    | Aborted
+    | Error String
     | Configured String Gamepad.CustomMap
 
 
@@ -69,6 +69,7 @@ type alias Model_ entry =
     { configuredEntries : List ConfiguredEntry
     , inputState : InputState
     , gamepadIndex : Int
+    , gamepadId : String
     , unconfiguredEntries : List ( MappableControl, entry )
     }
 
@@ -186,6 +187,7 @@ init gamepadIndex entries =
         { configuredEntries = []
         , inputState = WaitingForAllButtonsUp
         , gamepadIndex = gamepadIndex
+        , gamepadId = ""
         , unconfiguredEntries = entries
         }
 
@@ -194,16 +196,35 @@ init gamepadIndex entries =
 -- update
 
 
-onButtonPress : String -> Gamepad.Origin -> Model_ entry -> Outcome entry
-onButtonPress gamepadId origin model =
+configuredEntriesToOutcome : String -> List ConfiguredEntry -> Outcome a
+configuredEntriesToOutcome gamepadId configuredEntries =
+    case configuredEntriesToCustomMap configuredEntries of
+        Err message ->
+            Error "Gamepad.Remap bugged. =("
+
+        Ok customMap ->
+            Configured gamepadId customMap
+
+
+skipCurrentEntry : Model entry -> Outcome entry
+skipCurrentEntry (Model model) =
     case model.unconfiguredEntries of
         [] ->
-            case configuredEntriesToCustomMap model.configuredEntries of
-                Err s ->
-                    Debug.crash "booooo!"
+            Error "This should not happen."
 
-                Ok customMap ->
-                    Configured gamepadId customMap
+        currentEntry :: remainingEntries ->
+            -- Just ditch the current entry
+            if remainingEntries == [] then
+                configuredEntriesToOutcome model.gamepadId model.configuredEntries
+            else
+                StillOpen <| Model { model | unconfiguredEntries = remainingEntries, inputState = WaitingForAllButtonsUp }
+
+
+onButtonPress : Gamepad.Origin -> Model_ entry -> Outcome entry
+onButtonPress origin model =
+    case model.unconfiguredEntries of
+        [] ->
+            configuredEntriesToOutcome model.gamepadId model.configuredEntries
 
         currentEntry :: remainingEntries ->
             let
@@ -211,17 +232,23 @@ onButtonPress gamepadId origin model =
                     { destination = Tuple.first currentEntry
                     , origin = origin
                     }
+
+                configuredEntries =
+                    entryConfig :: model.configuredEntries
             in
-                StillOpen <|
-                    Model
-                        { model
-                            | configuredEntries = entryConfig :: model.configuredEntries
-                            , unconfiguredEntries = remainingEntries
-                        }
+                if remainingEntries == [] then
+                    configuredEntriesToOutcome model.gamepadId configuredEntries
+                else
+                    StillOpen <|
+                        Model
+                            { model
+                                | configuredEntries = configuredEntries
+                                , unconfiguredEntries = remainingEntries
+                            }
 
 
-onMaybePressedButton : String -> Maybe Gamepad.Origin -> Model_ entry -> Outcome entry
-onMaybePressedButton gamepadId maybeOrigin model =
+onMaybePressedButton : Maybe Gamepad.Origin -> Model_ entry -> Outcome entry
+onMaybePressedButton maybeOrigin model =
     case ( model.inputState, maybeOrigin ) of
         ( WaitingForAllButtonsUp, Just origin ) ->
             StillOpen <| Model model
@@ -230,10 +257,15 @@ onMaybePressedButton gamepadId maybeOrigin model =
             StillOpen <| Model { model | inputState = WaitingForAnyButtonDown }
 
         ( WaitingForAnyButtonDown, Just origin ) ->
-            onButtonPress gamepadId origin { model | inputState = WaitingForAllButtonsUp }
+            onButtonPress origin { model | inputState = WaitingForAllButtonsUp }
 
         ( WaitingForAnyButtonDown, Nothing ) ->
-            StillOpen <| Model model
+            StillOpen (Model model)
+
+
+notConnectedError : Int -> Outcome entry
+notConnectedError gamepadIndex =
+    Error <| "Gamepad " ++ toString gamepadIndex ++ " is not connected"
 
 
 update : Msg -> Model entry -> Outcome entry
@@ -242,13 +274,13 @@ update msg (Model model) =
         OnGamepad ( dt, blob ) ->
             case Gamepad.blobToRawGamepad model.gamepadIndex blob of
                 Nothing ->
-                    Disconnected
+                    notConnectedError model.gamepadIndex
 
                 Just rawGamepad ->
                     if not rawGamepad.connected then
-                        Disconnected
+                        notConnectedError model.gamepadIndex
                     else
-                        onMaybePressedButton (Gamepad.getId rawGamepad) (Gamepad.estimateOrigin rawGamepad) model
+                        onMaybePressedButton (Gamepad.estimateOrigin rawGamepad) { model | gamepadId = Gamepad.getId rawGamepad }
 
 
 
@@ -257,14 +289,12 @@ update msg (Model model) =
 
 currentEntry : Model entry -> Maybe entry
 currentEntry (Model model) =
-    List.head model.unconfiguredEntries
-        |> Maybe.map Tuple.second
+    List.head model.unconfiguredEntries |> Maybe.map Tuple.second
 
 
 view : Model String -> String
 view model =
-    currentEntry model
-        |> Maybe.withDefault "Controller configured. Press any button to continue!"
+    currentEntry model |> Maybe.withDefault ""
 
 
 
@@ -277,8 +307,4 @@ type alias PortSubscription msg =
 
 subscriptions : PortSubscription Msg -> Model entry -> Sub Msg
 subscriptions portSubscription model =
-    Sub.batch
-        [ portSubscription OnGamepad
-
-        -- TODO: listen to keyboard and abort on Esc
-        ]
+    portSubscription OnGamepad
