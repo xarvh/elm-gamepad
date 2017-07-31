@@ -1,11 +1,4 @@
-function addLocalStoragePorts(elmApp) {
-
-  /*
-  elmApp.ports.localStorageRequest.subscribe(function (key) {
-    elmApp.ports.localStorageReceive.send([key, localStorage[key]]);
-  })
-  */
-
+function addLocalStoragePort(elmApp) {
   elmApp.ports.localStorageSet.subscribe(function (args) {
     localStorage.setItem(args.key, args.value);
   });

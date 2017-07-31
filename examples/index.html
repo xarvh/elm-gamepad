@@ -14,9 +14,9 @@
   </head>
   <body>
     <script type="text/javascript">
-      var elmApp = Elm.Main.fullscreen(localStorage["gamepadCustomMaps"] || "");
+      var elmApp = Elm.Main.fullscreen(localStorage["gamepadButtonMaps"] || "");
       addGamepadPort(elmApp);
-      addLocalStoragePorts(elmApp);
+      addLocalStoragePort(elmApp);
     </script>
   </body>
 </html>

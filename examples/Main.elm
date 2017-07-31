@@ -114,7 +114,7 @@ updateRemap remapOutcome model =
                     Gamepad.buttonMapsToString newMaps
 
                 cmd =
-                    LocalStoragePort.set "gamepadCustomMaps" newMapsAsString
+                    LocalStoragePort.set "gamepadButtonMaps" newMapsAsString
 
                 newModel =
                     { model | state = Message "Successfully configured", buttonMaps = newMaps }

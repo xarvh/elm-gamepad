@@ -280,7 +280,7 @@ update msg (Model model) =
                     if not rawGamepad.connected then
                         notConnectedError model.gamepadIndex
                     else
-                        onMaybePressedButton (Gamepad.estimateOrigin rawGamepad) { model | gamepadId = Gamepad.getId rawGamepad }
+                        onMaybePressedButton (Gamepad.estimateOrigin rawGamepad) { model | gamepadId = Gamepad.rawGetId rawGamepad }
 
 
 

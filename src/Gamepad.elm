@@ -10,6 +10,7 @@ module Gamepad
         , buttonMapsToString
         , buttonMapsFromString
           -- recognised gamepad
+        , getIndex
         , aIsPressed
         , bIsPressed
         , xIsPressed
@@ -41,8 +42,8 @@ module Gamepad
         , destinationCodes
         , getFeatures
         , blobToRawGamepad
-        , getId
-        , isConnected
+        , rawGetId
+        , rawIsConnected
         , estimateOrigin
         )
 
@@ -238,7 +239,7 @@ blobToRawGamepad index blob =
 
 maybeIsConnected : RawGamepad -> Maybe RawGamepad
 maybeIsConnected rawGamepad =
-    if isConnected rawGamepad then
+    if rawIsConnected rawGamepad then
         Just rawGamepad
     else
         Nothing
@@ -600,14 +601,27 @@ estimateOrigin rawGamepad =
             |> Maybe.andThen estimateThreshold
 
 
-isConnected : RawGamepad -> Bool
-isConnected =
+rawIsConnected : RawGamepad -> Bool
+rawIsConnected =
     .connected
 
 
-getId : RawGamepad -> String
-getId =
+rawGetId : RawGamepad -> String
+rawGetId =
     .id
+
+
+rawGetIndex : RawGamepad -> Int
+rawGetIndex =
+  .index
+
+
+
+
+getIndex : Gamepad -> Int
+getIndex (Gamepad string raw) =
+  rawGetIndex raw
+
 
 
 getFeatures : Gamepad -> Set String
