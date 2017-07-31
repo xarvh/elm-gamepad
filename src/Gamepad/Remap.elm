@@ -5,6 +5,7 @@ module Gamepad.Remap
         , Model
         , Msg
         , currentEntry
+        , gamepadIndex
         , skipCurrentEntry
         , init
         , update
@@ -287,6 +288,11 @@ update msg (Model model) =
 -- view
 
 
+gamepadIndex : Model entry -> Int
+gamepadIndex (Model model) =
+    model.gamepadIndex
+
+
 currentEntry : Model entry -> Maybe entry
 currentEntry (Model model) =
     List.head model.unconfiguredEntries |> Maybe.map Tuple.second
@@ -305,6 +311,6 @@ type alias PortSubscription msg =
     (( Time, Gamepad.Blob ) -> msg) -> Sub msg
 
 
-subscriptions : PortSubscription Msg -> Model entry -> Sub Msg
-subscriptions portSubscription model =
+subscriptions : PortSubscription Msg -> Sub Msg
+subscriptions portSubscription =
     portSubscription OnGamepad
