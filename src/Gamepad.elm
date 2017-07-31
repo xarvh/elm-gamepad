@@ -2,13 +2,13 @@ module Gamepad
     exposing
         ( Gamepad
         , Connection(..)
-        , Blob
-        , CustomMap
+        , ButtonMap
         , RawGamepad
+        , Blob
           --
         , getGamepad
-        , customMapsToString
-        , customMapsFromString
+        , buttonMapsToString
+        , buttonMapsFromString
           -- recognised gamepad
         , aIsPressed
         , bIsPressed
@@ -37,7 +37,7 @@ module Gamepad
         , rightTriggerValue
           -- advanced
         , Origin
-        , customMap
+        , buttonMap
         , destinationCodes
         , getFeatures
         , blobToRawGamepad
@@ -76,8 +76,8 @@ type Connection
     | Available Gamepad
 
 
-type CustomMap
-    = CustomMap String
+type ButtonMap
+    = ButtonMap String
 
 
 {-| -}
@@ -154,8 +154,8 @@ fixAllAxesCoupling map =
         |> List.foldr fixAxisCoupling map
 
 
-customMap : Dict String Origin -> Result String CustomMap
-customMap map =
+buttonMap : Dict String Origin -> Result String ButtonMap
+buttonMap map =
     let
         hasMinus isReverse =
             if isReverse then
@@ -183,19 +183,19 @@ customMap map =
             |> List.map tupleToString
             |> List.sortBy identity
             |> String.join ","
-            |> CustomMap
+            |> ButtonMap
             |> Ok
 
 
-customMapDivider =
+buttonMapDivider =
     ",,,"
 
 
-customMapsToString : Dict String CustomMap -> String
-customMapsToString maps =
+buttonMapsToString : Dict String ButtonMap -> String
+buttonMapsToString maps =
     let
-        tupleToString ( gamepadId, CustomMap map ) =
-            gamepadId ++ customMapDivider ++ map ++ "\n"
+        tupleToString ( gamepadId, ButtonMap map ) =
+            gamepadId ++ buttonMapDivider ++ map ++ "\n"
     in
         maps
             |> Dict.toList
@@ -204,13 +204,13 @@ customMapsToString maps =
             |> String.join ""
 
 
-customMapsFromString : String -> Result String (Dict String CustomMap)
-customMapsFromString mapsAsString =
+buttonMapsFromString : String -> Result String (Dict String ButtonMap)
+buttonMapsFromString mapsAsString =
     let
         stringToTuple dbEntry =
-            case String.split customMapDivider dbEntry of
+            case String.split buttonMapDivider dbEntry of
                 [ id, map ] ->
-                    Just ( id, CustomMap map )
+                    Just ( id, ButtonMap map )
 
                 _ ->
                     Nothing
@@ -352,19 +352,18 @@ getValue destinationCode (Gamepad mapping rawGamepad) =
                 |> Maybe.withDefault 0
 
 
-getGamepad : Dict String CustomMap -> Blob -> Int -> Connection
-getGamepad customMaps blob index =
-    -- TODO merge default maps?
+getGamepad : Dict String ButtonMap -> Blob -> Int -> Connection
+getGamepad buttonMaps blob index =
     case blobToRawGamepad index blob of
         Nothing ->
             Disconnected
 
         Just rawGamepad ->
-            case Dict.get rawGamepad.id customMaps of
+            case Dict.get rawGamepad.id buttonMaps of
                 Nothing ->
                     Unrecognised
 
-                Just (CustomMap map) ->
+                Just (ButtonMap map) ->
                     Available (Gamepad map rawGamepad)
 
 

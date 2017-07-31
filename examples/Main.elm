@@ -20,7 +20,7 @@ type State
 
 
 type alias Model =
-    { customMaps : Dict String Gamepad.CustomMap
+    { buttonMaps : Dict String Gamepad.ButtonMap
     , state : State
     }
 
@@ -87,7 +87,7 @@ controlsToMap =
 init : String -> ( Model, Cmd Msg )
 init gamepadCustomMapsAsString =
     noCmd
-        { customMaps = Gamepad.customMapsFromString gamepadCustomMapsAsString |> Result.withDefault Dict.empty
+        { buttonMaps = Gamepad.buttonMapsFromString gamepadCustomMapsAsString |> Result.withDefault Dict.empty
         , state = Display Nothing
         }
 
@@ -105,19 +105,19 @@ updateRemap remapOutcome model =
         Error message ->
             noCmd { model | state = Message <| "Error: " ++ message }
 
-        Configured gamepadId customMap ->
+        Configured gamepadId buttonMap ->
             let
                 newMaps =
-                    Dict.insert gamepadId customMap model.customMaps
+                    Dict.insert gamepadId buttonMap model.buttonMaps
 
                 newMapsAsString =
-                    Gamepad.customMapsToString newMaps
+                    Gamepad.buttonMapsToString newMaps
 
                 cmd =
                     LocalStoragePort.set "gamepadCustomMaps" newMapsAsString
 
                 newModel =
-                    { model | state = Message "Successfully configured", customMaps = newMaps }
+                    { model | state = Message "Successfully configured", buttonMaps = newMaps }
             in
                 ( newModel, cmd )
 
@@ -186,7 +186,7 @@ viewControl gamepad getter name =
 
 viewGamepadsBlob : Model -> Gamepad.Blob -> Html Msg
 viewGamepadsBlob model blob =
-    case Gamepad.getGamepad model.customMaps blob 0 of
+    case Gamepad.getGamepad model.buttonMaps blob 0 of
         Gamepad.Disconnected ->
             text "disconnected"
 
@@ -272,7 +272,7 @@ view model =
                     []
                     [ div
                         []
-                        [ text <| toString (Dict.size model.customMaps) ++ " custom gamepad maps" ]
+                        [ text <| toString (Dict.size model.buttonMaps) ++ " custom gamepad maps" ]
                     , div
                         []
                         [ case maybeGamepadsBlob of

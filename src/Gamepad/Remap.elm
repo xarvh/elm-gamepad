@@ -51,7 +51,7 @@ type MappableControl
 type Outcome entry
     = StillOpen (Model entry)
     | Error String
-    | Configured String Gamepad.CustomMap
+    | Configured String Gamepad.ButtonMap
 
 
 type alias ConfiguredEntry =
@@ -165,8 +165,8 @@ mappableControlToDestinationCode mappableControl =
             destinationCodes.dpadRight
 
 
-configuredEntriesToCustomMap : List ConfiguredEntry -> Result String Gamepad.CustomMap
-configuredEntriesToCustomMap entries =
+configuredEntriesToButtonMap : List ConfiguredEntry -> Result String Gamepad.ButtonMap
+configuredEntriesToButtonMap entries =
     let
         entryToTuple entry =
             ( mappableControlToDestinationCode entry.destination, entry.origin )
@@ -174,7 +174,7 @@ configuredEntriesToCustomMap entries =
         entries
             |> List.map entryToTuple
             |> Dict.fromList
-            |> Gamepad.customMap
+            |> Gamepad.buttonMap
 
 
 
@@ -198,12 +198,12 @@ init gamepadIndex entries =
 
 configuredEntriesToOutcome : String -> List ConfiguredEntry -> Outcome a
 configuredEntriesToOutcome gamepadId configuredEntries =
-    case configuredEntriesToCustomMap configuredEntries of
+    case configuredEntriesToButtonMap configuredEntries of
         Err message ->
             Error "Gamepad.Remap bugged. =("
 
-        Ok customMap ->
-            Configured gamepadId customMap
+        Ok buttonMap ->
+            Configured gamepadId buttonMap
 
 
 skipCurrentEntry : Model entry -> Outcome entry
