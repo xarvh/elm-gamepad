@@ -11,19 +11,26 @@ import LocalStoragePort
 import Time exposing (Time)
 
 
+-- types
+
+
+{-| Gamepad.Remap.Model's argument is the type describe how to present
+each button that we want to map.
+Since we just want to display the text name of each button, a String will do.
+-}
 type alias RemapModel =
     Gamepad.Remap.Model String
 
 
 type State
-    = Message String
-    | Remapping RemapModel
-    | Display (Maybe Gamepad.Blob)
+    = Message String -- Just display a message
+    | Remapping RemapModel -- This means that we are remapping a gamepad
+    | Display (Maybe Gamepad.Blob) -- This means that we are displaying the gamepads mapped controls
 
 
 type alias Model =
     { gamepadDatabase : Gamepad.Database
-    , gamepadDatabaseKey : String
+    , gamepadDatabaseKey : String -- This is the key we use for the database in the browser's local storage
     , state : State
     }
 
@@ -40,6 +47,10 @@ type Msg
 -- Mapping
 
 
+{-| Most of the times, we want to remap only the controls that our application
+will actually use, and name them according to the function they will have for
+the application.
+-}
 controlsForASpecificProgram =
     [ ( LeftUp, "Move Up" )
     , ( LeftDown, "Move Down" )
@@ -50,6 +61,10 @@ controlsForASpecificProgram =
     ]
 
 
+{-| Since this specific example/ can be used also for testing, I think it
+is useful to have a complete list of controls with the names of the physical
+buttons rather than the name of their effect for a specific application.
+-}
 allMappableControls =
     [ ( A, "Button A / Cross" )
     , ( B, "Button B / Circle" )
@@ -112,50 +127,62 @@ init flags =
 -- update
 
 
-error message model =
-    noCmd { model | state = Message <| "Error: " ++ message }
-
-
-updateRemap : Gamepad.Remap.Outcome String -> Model -> ( Model, Cmd Msg )
-updateRemap remapOutcome model =
-    case remapOutcome of
-        StillOpen remapModel ->
-            noCmd { model | state = Remapping remapModel }
-
-        Error message ->
-            error message model
-
-        UpdateDatabase updateDatabase ->
-            case updateDatabase model.gamepadDatabase of
-                Err message ->
-                    error message model
-
-                Ok gamepadDatabase ->
-                    let
-                        cmd =
-                            gamepadDatabase
-                                |> Gamepad.databaseToString
-                                |> LocalStoragePort.set model.gamepadDatabaseKey
-
-                        newModel =
-                            { model
-                                | state = Message "Successfully configured"
-                                , gamepadDatabase = gamepadDatabase
-                            }
-                    in
-                        ( newModel, cmd )
-
-
+noCmd : Model -> ( Model, Cmd msg )
 noCmd model =
     ( model, Cmd.none )
 
 
+error : String -> Model -> ( Model, Cmd msg )
+error message model =
+    noCmd { model | state = Message <| "Error: " ++ message }
+
+
+{-| The update function for Gamepad.Remap does not return its Model, but rather
+a type telling the parent what to do next.
+-}
+updateRemap : Gamepad.Remap.Outcome String -> Model -> ( Model, Cmd Msg )
+updateRemap remapOutcome model =
+    case remapOutcome of
+        -- This means that the remapping is still in progress.
+        StillOpen remapModel ->
+            noCmd { model | state = Remapping remapModel }
+
+        -- This means that something went wrong with the remapping process.
+        -- Usually it means that the gamepad was disconnected.
+        Error message ->
+            error message model
+
+        -- This means that the user is done remapping.
+        -- `updateDatabse` is the function to use to actually insert the
+        -- new button map inside the gamepad database.
+        UpdateDatabase updateDatabase ->
+            let
+                gamepadDatabase =
+                    updateDatabase model.gamepadDatabase
+
+                cmd =
+                    gamepadDatabase
+                        |> Gamepad.databaseToString
+                        |> LocalStoragePort.set model.gamepadDatabaseKey
+
+                newModel =
+                    { model
+                        | state = Message "Successfully configured"
+                        , gamepadDatabase = gamepadDatabase
+                    }
+            in
+                ( newModel, cmd )
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    -- How we interprete each Msg depends on the current state of the app,
+    -- so we consider the two together.
     case ( msg, model.state ) of
         ( OnRemapMsg remapMsg, Remapping remapModel ) ->
             updateRemap (Gamepad.Remap.update remapMsg remapModel) model
 
+        -- Keys are used only when remapping
         ( OnKey keyCode, Remapping remapModel ) ->
             case keyCode of
                 -- Esc: abort remapping
@@ -169,6 +196,8 @@ update msg model =
                 _ ->
                     noCmd model
 
+        -- Gamepad input is used only when we are in `Display` status.
+        -- (Gamepad.Remap has its own subscription to get gamepad data).
         ( OnGamepad ( time, gamepadsBlob ), Display _ ) ->
             noCmd <| { model | state = Display (Just gamepadsBlob) }
 
@@ -186,26 +215,11 @@ update msg model =
 -- view
 
 
-viewInput ( name, value ) =
-    li
-        []
-        [ text <| name ++ "  " ++ value ]
-
-
-remapButton index =
+viewRemapButton : Int -> Html Msg
+viewRemapButton index =
     button
         [ Html.Events.onClick (OnStartRemapping index) ]
         [ text "Remap" ]
-
-
-viewControl gamepad getter name =
-    let
-        value =
-            getter gamepad |> toString
-    in
-        li
-            []
-            [ text <| name ++ ": " ++ value ]
 
 
 viewGamepad : Gamepad -> ( Int, Html Msg )
@@ -214,39 +228,42 @@ viewGamepad gamepad =
         index =
             Gamepad.getIndex gamepad
 
-        vc =
-            viewControl gamepad
+        viewControl : (Gamepad -> a) -> String -> Html msg
+        viewControl getter name =
+            li
+                []
+                [ text <| name ++ ": " ++ toString (getter gamepad) ]
     in
         ( index
         , div
             []
             [ ul
                 []
-                [ vc Gamepad.aIsPressed "A"
-                , vc Gamepad.bIsPressed "B"
-                , vc Gamepad.xIsPressed "X"
-                , vc Gamepad.yIsPressed "Y"
-                , vc Gamepad.startIsPressed "Start"
-                , vc Gamepad.backIsPressed "Back"
-                , vc Gamepad.guideIsPressed "Guide"
-                , vc Gamepad.dpadX "Dpad X"
-                , vc Gamepad.dpadY "Dpad Y"
-                , vc Gamepad.leftX "Left X"
-                , vc Gamepad.leftY "Left Y"
-                , vc Gamepad.leftStickIsPressed "Left Stick"
-                , vc Gamepad.leftShoulderIsPressed "Left Shoulder"
-                , vc Gamepad.leftTriggerIsPressed "Left Trigger (digital)"
-                , vc Gamepad.leftTriggerValue "Left Trigger (analog)"
-                , vc Gamepad.rightX "Right X"
-                , vc Gamepad.rightY "Right Y"
-                , vc Gamepad.rightStickIsPressed "Right Stick"
-                , vc Gamepad.rightShoulderIsPressed "Right Shoulder"
-                , vc Gamepad.rightTriggerIsPressed "Right Trigger (digital)"
-                , vc Gamepad.rightTriggerValue "Right Trigger (analog)"
+                [ viewControl Gamepad.aIsPressed "A"
+                , viewControl Gamepad.bIsPressed "B"
+                , viewControl Gamepad.xIsPressed "X"
+                , viewControl Gamepad.yIsPressed "Y"
+                , viewControl Gamepad.startIsPressed "Start"
+                , viewControl Gamepad.backIsPressed "Back"
+                , viewControl Gamepad.guideIsPressed "Guide"
+                , viewControl Gamepad.dpadX "Dpad X"
+                , viewControl Gamepad.dpadY "Dpad Y"
+                , viewControl Gamepad.leftX "Left X"
+                , viewControl Gamepad.leftY "Left Y"
+                , viewControl Gamepad.leftStickIsPressed "Left Stick"
+                , viewControl Gamepad.leftShoulderIsPressed "Left Shoulder"
+                , viewControl Gamepad.leftTriggerIsPressed "Left Trigger (digital)"
+                , viewControl Gamepad.leftTriggerValue "Left Trigger (analog)"
+                , viewControl Gamepad.rightX "Right X"
+                , viewControl Gamepad.rightY "Right Y"
+                , viewControl Gamepad.rightStickIsPressed "Right Stick"
+                , viewControl Gamepad.rightShoulderIsPressed "Right Shoulder"
+                , viewControl Gamepad.rightTriggerIsPressed "Right Trigger (digital)"
+                , viewControl Gamepad.rightTriggerValue "Right Trigger (analog)"
                 ]
             , div
                 []
-                [ remapButton index ]
+                [ viewRemapButton index ]
             ]
         )
 
@@ -261,7 +278,7 @@ viewUnknownGamepad unknownGamepad =
         , div
             []
             [ text "I don't know any mapping for this gamepad, but you can remap it."
-            , remapButton index
+            , viewRemapButton index
             ]
         )
 
@@ -310,7 +327,7 @@ view model =
                         [ text "Press the button you want to use for:" ]
                     , div
                         []
-                        [ text <| "----> " ++ Gamepad.Remap.view remapModel ++ " <----" ]
+                        [ text <| "> " ++ Gamepad.Remap.view remapModel ++ " <" ]
                     , div
                         []
                         [ text "Press SPACE if you don't have this button" ]
