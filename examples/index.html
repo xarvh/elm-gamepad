@@ -14,7 +14,11 @@
   </head>
   <body>
     <script type="text/javascript">
-      var elmApp = Elm.Main.fullscreen(localStorage["gamepadButtonMaps"] || "");
+      var gamepadDatabaseKey = "gamepadDatabase";
+      var elmApp = Elm.Main.fullscreen({
+        gamepadDatabaseKey: gamepadDatabaseKey,
+        gamepadDatabaseAsString: localStorage[gamepadDatabaseKey] || "",
+      });
       addGamepadPort(elmApp);
       addLocalStoragePort(elmApp);
     </script>

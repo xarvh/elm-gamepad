@@ -1,16 +1,22 @@
 module Gamepad
     exposing
         ( Gamepad
-        , Connection(..)
-        , ButtonMap
-        , RawGamepad
+        , UnknownGamepad
+        , Database
+          -- port stuff
         , Blob
           --
-        , getGamepad
-        , buttonMapsToString
-        , buttonMapsFromString
-          -- recognised gamepad
+        , getGamepads
+        , getUnknownGamepads
+        , emptyDatabase
+        , databaseToString
+        , databaseFromString
+          -- unknown gamepad
+        , unknownGetId
+        , unknownGetIndex
+          -- known gamepad
         , getIndex
+        , getFeatures
         , aIsPressed
         , bIsPressed
         , xIsPressed
@@ -36,15 +42,11 @@ module Gamepad
         , rightShoulderIsPressed
         , rightTriggerIsPressed
         , rightTriggerValue
-          -- advanced
+          -- mapping
         , Origin
-        , buttonMap
         , destinationCodes
-        , getFeatures
-        , blobToRawGamepad
-        , rawGetId
-        , rawIsConnected
         , estimateOrigin
+        , insertButtonMapInDatabase
         )
 
 {-| @docs Gamepad
@@ -52,29 +54,34 @@ module Gamepad
 
 import Array exposing (Array)
 import Dict exposing (Dict)
-import List.Extra
 import Regex
 import Set exposing (Set)
 import Time exposing (Time)
 
 
-type OriginType
-    = Axis
-    | Button
+{-| exposed types with private constructors
+-}
+type Gamepad
+    = Gamepad String RawGamepad
+
+
+type UnknownGamepad
+    = UnknownGamepad RawGamepad
+
+
+type Database
+    = Database (Dict String ButtonMap)
 
 
 type Origin
     = Origin Bool OriginType Int
 
 
-type Gamepad
-    = Gamepad String RawGamepad
-
-
-type Connection
-    = Disconnected
-    | Unrecognised
-    | Available Gamepad
+{-| internal types
+-}
+type OriginType
+    = Axis
+    | Button
 
 
 type ButtonMap
@@ -90,13 +97,6 @@ type alias RawButton =
     ( Bool, Float )
 
 
-{-| This record describes the raw data for a gamepad, as provided directly from the port.
-
-**Do not rely on its internals.**
-
-Instead, manipulate it with the provided functions.
-
--}
 type alias RawGamepad =
     { axes : Array Float
     , buttons : Array RawButton
@@ -107,7 +107,40 @@ type alias RawGamepad =
 
 
 
--- custom map
+-- destination codes
+
+
+destinationCodes =
+    { a = "a"
+    , b = "b"
+    , x = "x"
+    , y = "y"
+    , start = "start"
+    , back = "back"
+    , guide = "guide"
+    , leftLeft = "leftleft"
+    , leftRight = "leftright"
+    , leftUp = "leftup"
+    , leftDown = "leftdown"
+    , leftStick = "leftstick"
+    , leftShoulder = "leftshoulder"
+    , leftTrigger = "lefttrigger"
+    , rightLeft = "rightleft"
+    , rightRight = "rightright"
+    , rightUp = "rightup"
+    , rightDown = "rightdown"
+    , rightStick = "rightstick"
+    , rightShoulder = "rightshoulder"
+    , rightTrigger = "righttrigger"
+    , dpadUp = "dpadup"
+    , dpadDown = "dpaddown"
+    , dpadLeft = "dpadleft"
+    , dpadRight = "dpadright"
+    }
+
+
+
+-- Adding a ButtonMap to a Database
 
 
 intToString : Int -> String
@@ -188,25 +221,45 @@ buttonMap map =
             |> Ok
 
 
+insertButtonMapInDatabase : UnknownGamepad -> Dict String Origin -> Database -> Result String Database
+insertButtonMapInDatabase unknownGamepad map (Database database) =
+    let
+        buttonMapToDatabase newButtonMap =
+            Dict.insert (unknownGetId unknownGamepad) newButtonMap database |> Database
+    in
+        buttonMap map
+            |> Result.map buttonMapToDatabase
+
+
+
+-- Encoding and decoding Databases
+
+
+emptyDatabase : Database
+emptyDatabase =
+    Database Dict.empty
+
+
+buttonMapDivider : String
 buttonMapDivider =
     ",,,"
 
 
-buttonMapsToString : Dict String ButtonMap -> String
-buttonMapsToString maps =
+databaseToString : Database -> String
+databaseToString (Database database) =
     let
         tupleToString ( gamepadId, ButtonMap map ) =
             gamepadId ++ buttonMapDivider ++ map ++ "\n"
     in
-        maps
+        database
             |> Dict.toList
             |> List.map tupleToString
             |> List.sortBy identity
             |> String.join ""
 
 
-buttonMapsFromString : String -> Result String (Dict String ButtonMap)
-buttonMapsFromString mapsAsString =
+databaseFromString : String -> Result String Database
+databaseFromString databaseAsString =
     let
         stringToTuple dbEntry =
             case String.split buttonMapDivider dbEntry of
@@ -216,33 +269,64 @@ buttonMapsFromString mapsAsString =
                 _ ->
                     Nothing
     in
-        mapsAsString
+        databaseAsString
             |> String.split "\n"
             |> List.map stringToTuple
             |> List.filterMap identity
             |> Dict.fromList
+            |> Database
+            -- TODO: detect and return errors instead of ignoring them silently
             |> Ok
 
 
 
--- getGamepad helpers
+-- Get gamepads
 
 
-{-| -}
-blobToRawGamepad : Int -> Blob -> Maybe RawGamepad
-blobToRawGamepad index blob =
+rawGamepadToGamepad : Database -> RawGamepad -> Maybe Gamepad
+rawGamepadToGamepad (Database database) rawGamepad =
+    case rawGamepad.connected of
+        False ->
+            Nothing
+
+        True ->
+            database
+                |> Dict.get rawGamepad.id
+                |> Maybe.map (\(ButtonMap buttonMapAsString) -> Gamepad buttonMapAsString rawGamepad)
+
+
+getGamepads : Database -> Blob -> List Gamepad
+getGamepads database blob =
+    -- TODO: it might be faster to parse the button maps here, rather than running a regex at every getter
     blob
         |> List.filterMap identity
-        |> List.Extra.find (\g -> g.index == index)
-        |> Maybe.andThen maybeIsConnected
+        |> List.map (rawGamepadToGamepad database)
+        |> List.filterMap identity
 
 
-maybeIsConnected : RawGamepad -> Maybe RawGamepad
-maybeIsConnected rawGamepad =
-    if rawIsConnected rawGamepad then
-        Just rawGamepad
-    else
-        Nothing
+rawGamepadToUnknownGamepad : Database -> RawGamepad -> Maybe UnknownGamepad
+rawGamepadToUnknownGamepad (Database database) rawGamepad =
+    case rawGamepad.connected of
+        False ->
+            Nothing
+
+        True ->
+            if Dict.member rawGamepad.id database then
+                Nothing
+            else
+                Just (UnknownGamepad rawGamepad)
+
+
+getUnknownGamepads : Database -> Blob -> List UnknownGamepad
+getUnknownGamepads database blob =
+    blob
+        |> List.filterMap identity
+        |> List.map (rawGamepadToUnknownGamepad database)
+        |> List.filterMap identity
+
+
+
+-- input code helpers
 
 
 stringToInputType : String -> Maybe OriginType
@@ -291,10 +375,6 @@ mappingToRawIndex destinationCode mapping =
             |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
             |> List.head
             |> Maybe.andThen regexMatchToInputTuple
-
-
-
--- input code helpers
 
 
 axisToButton : Float -> Bool
@@ -353,21 +433,6 @@ getValue destinationCode (Gamepad mapping rawGamepad) =
                 |> Maybe.withDefault 0
 
 
-getGamepad : Dict String ButtonMap -> Blob -> Int -> Connection
-getGamepad buttonMaps blob index =
-    case blobToRawGamepad index blob of
-        Nothing ->
-            Disconnected
-
-        Just rawGamepad ->
-            case Dict.get rawGamepad.id buttonMaps of
-                Nothing ->
-                    Unrecognised
-
-                Just (ButtonMap map) ->
-                    Available (Gamepad map rawGamepad)
-
-
 getAxis : String -> String -> Gamepad -> Float
 getAxis codeNegative codePositive pad =
     (getValue codePositive pad - getValue codeNegative pad)
@@ -375,40 +440,41 @@ getAxis codeNegative codePositive pad =
 
 
 
--- destination codes
+-- Unknown Gamepad getters
 
 
-destinationCodes =
-    { a = "a"
-    , b = "b"
-    , x = "x"
-    , y = "y"
-    , start = "start"
-    , back = "back"
-    , guide = "guide"
-    , leftLeft = "leftleft"
-    , leftRight = "leftright"
-    , leftUp = "leftup"
-    , leftDown = "leftdown"
-    , leftStick = "leftstick"
-    , leftShoulder = "leftshoulder"
-    , leftTrigger = "lefttrigger"
-    , rightLeft = "rightleft"
-    , rightRight = "rightright"
-    , rightUp = "rightup"
-    , rightDown = "rightdown"
-    , rightStick = "rightstick"
-    , rightShoulder = "rightshoulder"
-    , rightTrigger = "righttrigger"
-    , dpadUp = "dpadup"
-    , dpadDown = "dpaddown"
-    , dpadLeft = "dpadleft"
-    , dpadRight = "dpadright"
-    }
+unknownGetId : UnknownGamepad -> String
+unknownGetId (UnknownGamepad raw) =
+    raw.id
+
+
+unknownGetIndex : UnknownGamepad -> Int
+unknownGetIndex (UnknownGamepad raw) =
+    raw.index
 
 
 
--- face buttons
+-- Gamepad getters
+
+
+getIndex : Gamepad -> Int
+getIndex (Gamepad string raw) =
+    raw.index
+
+
+getFeatures : Gamepad -> Set String
+getFeatures (Gamepad mapping raw) =
+    let
+        stripOrigin mappingEntry =
+            mappingEntry
+                |> String.split ":"
+                |> List.head
+                |> Maybe.withDefault ""
+    in
+        mapping
+            |> String.split ","
+            |> List.map stripOrigin
+            |> Set.fromList
 
 
 aIsPressed =
@@ -584,8 +650,8 @@ estimateThreshold ( origin, confidence ) =
 {-| The function takes a gamepad state and returns a guess of the origin
 currently activated by the player.
 -}
-estimateOrigin : RawGamepad -> Maybe Origin
-estimateOrigin rawGamepad =
+estimateOrigin : UnknownGamepad -> Maybe Origin
+estimateOrigin (UnknownGamepad rawGamepad) =
     let
         axesEstimates =
             Array.indexedMap axisToEstimate rawGamepad.axes
@@ -599,41 +665,3 @@ estimateOrigin rawGamepad =
             |> List.reverse
             |> List.head
             |> Maybe.andThen estimateThreshold
-
-
-rawIsConnected : RawGamepad -> Bool
-rawIsConnected =
-    .connected
-
-
-rawGetId : RawGamepad -> String
-rawGetId =
-    .id
-
-
-rawGetIndex : RawGamepad -> Int
-rawGetIndex =
-  .index
-
-
-
-
-getIndex : Gamepad -> Int
-getIndex (Gamepad string raw) =
-  rawGetIndex raw
-
-
-
-getFeatures : Gamepad -> Set String
-getFeatures (Gamepad mapping raw) =
-    let
-        stripOrigin mappingEntry =
-            mappingEntry
-                |> String.split ":"
-                |> List.head
-                |> Maybe.withDefault ""
-    in
-        mapping
-            |> String.split ","
-            |> List.map stripOrigin
-            |> Set.fromList
