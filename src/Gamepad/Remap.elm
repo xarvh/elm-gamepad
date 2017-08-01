@@ -54,7 +54,7 @@ type MappableControl
 type Outcome presentation
     = StillOpen (Model presentation)
     | Error String
-    | UpdateDatabase (Gamepad.Database -> Result String Gamepad.Database)
+    | UpdateDatabase (Gamepad.Database -> Gamepad.Database)
 
 
 type alias ConfiguredEntry =
@@ -232,11 +232,13 @@ configuredButtonsToOutcome targetUnknownGamepad configuredButtons =
             configuredButtons
                 |> List.map configuredButtonToTuple
                 |> Dict.fromList
-
-        updateDatabase database =
-            Gamepad.insertButtonMapInDatabase targetUnknownGamepad map database
     in
-        UpdateDatabase updateDatabase
+        case Gamepad.buttonMapToUpdateDatabase targetUnknownGamepad map of
+            Err message ->
+                Error message
+
+            Ok updateDatabase ->
+                UpdateDatabase updateDatabase
 
 
 skipCurrentButton : Model presentation -> Outcome presentation

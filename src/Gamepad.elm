@@ -46,7 +46,7 @@ module Gamepad
         , Origin
         , destinationCodes
         , estimateOrigin
-        , insertButtonMapInDatabase
+        , buttonMapToUpdateDatabase
         )
 
 {-| @docs Gamepad
@@ -222,14 +222,14 @@ buttonMap map =
             |> Ok
 
 
-insertButtonMapInDatabase : UnknownGamepad -> Dict String Origin -> Database -> Result String Database
-insertButtonMapInDatabase unknownGamepad map (Database database) =
+buttonMapToUpdateDatabase : UnknownGamepad -> Dict String Origin -> Result String (Database -> Database)
+buttonMapToUpdateDatabase unknownGamepad map =
     let
-        buttonMapToDatabase newButtonMap =
+        updateDatabase : ButtonMap -> Database -> Database
+        updateDatabase newButtonMap (Database database) =
             Dict.insert (unknownGetId unknownGamepad) newButtonMap database |> Database
     in
-        buttonMap map
-            |> Result.map buttonMapToDatabase
+        buttonMap map |> Result.map updateDatabase
 
 
 
