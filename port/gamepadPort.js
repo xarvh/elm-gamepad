@@ -8,6 +8,7 @@ function addGamepadPort(elmApp) {
       connected: g.connected,
       id: g.id,
       index: g.index,
+      timestamp: g.timestamp,
     };
   }
 

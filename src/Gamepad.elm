@@ -103,6 +103,7 @@ type alias RawGamepad =
     , connected : Bool
     , id : String
     , index : Int
+    , timestamp : Float
     }
 
 
@@ -283,9 +284,17 @@ databaseFromString databaseAsString =
 -- Get gamepads
 
 
+isConnected : RawGamepad -> Bool
+isConnected rawGamepad =
+    -- All browsers running under Windows 10 will sometimes throw in a zombie gamepad
+    -- object, unrelated to any physical gamepad and never updated.
+    -- Since this gamepad has always timestamp == 0, we use this to discard it.
+    rawGamepad.connected && rawGamepad.timestamp > 0
+
+
 rawGamepadToGamepad : Database -> RawGamepad -> Maybe Gamepad
 rawGamepadToGamepad (Database database) rawGamepad =
-    case rawGamepad.connected of
+    case isConnected rawGamepad of
         False ->
             Nothing
 
@@ -306,7 +315,7 @@ getGamepads database blob =
 
 rawGamepadToUnknownGamepad : Database -> RawGamepad -> Maybe UnknownGamepad
 rawGamepadToUnknownGamepad (Database database) rawGamepad =
-    case rawGamepad.connected of
+    case isConnected rawGamepad of
         False ->
             Nothing
 
