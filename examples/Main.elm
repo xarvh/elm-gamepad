@@ -164,7 +164,7 @@ update msg model =
 
                 -- Space: skip current entry
                 32 ->
-                    updateRemap (Gamepad.Remap.skipCurrentEntry remapModel) model
+                    updateRemap (Gamepad.Remap.skipCurrentButton remapModel) model
 
                 _ ->
                     noCmd model
