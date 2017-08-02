@@ -1,20 +1,22 @@
 module Gamepad.Remap
     exposing
         ( MappableControl(..)
+          -- Elm Architecture
         , Outcome(..)
         , Model
         , Msg
-        , currentEntry
-        , gamepadIndex
-        , skipCurrentEntry
         , init
         , update
         , view
         , subscriptions
+          -- utility
+        , getCurrentButton
+        , getTargetGamepadIndex
+        , skipCurrentButton
         )
 
 import Dict exposing (Dict)
-import Gamepad exposing (destinationCodes)
+import Gamepad exposing (destinationCodes, UnknownGamepad)
 import Time exposing (Time)
 
 
@@ -49,10 +51,10 @@ type MappableControl
     | DpadRight
 
 
-type Outcome entry
-    = StillOpen (Model entry)
+type Outcome presentation
+    = StillOpen (Model presentation)
     | Error String
-    | Configured String Gamepad.ButtonMap
+    | UpdateDatabase (Gamepad.Database -> Gamepad.Database)
 
 
 type alias ConfiguredEntry =
@@ -66,17 +68,21 @@ type InputState
     | WaitingForAnyButtonDown
 
 
-type alias Model_ entry =
-    { configuredEntries : List ConfiguredEntry
+type alias UnconfiguredButtons presentation =
+    List ( MappableControl, presentation )
+
+
+type alias ModelRecord presentation =
+    { configuredButtons : List ConfiguredEntry
     , inputState : InputState
-    , gamepadIndex : Int
-    , gamepadId : String
-    , unconfiguredEntries : List ( MappableControl, entry )
+    , targetUnknownGamepad : UnknownGamepad
+    , unconfiguredButtons : UnconfiguredButtons presentation
     }
 
 
-type Model entry
-    = Model (Model_ entry)
+type Model presentation
+    = Ready (ModelRecord presentation)
+    | WaitingForGamepad Int (UnconfiguredButtons presentation)
 
 
 type Msg
@@ -84,7 +90,7 @@ type Msg
 
 
 
--- transforming configured entries into a configuration string
+-- transforming configured buttons into a configuration string
 
 
 mappableControlToDestinationCode : MappableControl -> String
@@ -166,141 +172,195 @@ mappableControlToDestinationCode mappableControl =
             destinationCodes.dpadRight
 
 
-configuredEntriesToButtonMap : List ConfiguredEntry -> Result String Gamepad.ButtonMap
-configuredEntriesToButtonMap entries =
+
+-- helpers
+
+
+indexToUnknownGamepad : Gamepad.Blob -> Int -> Maybe UnknownGamepad
+indexToUnknownGamepad blob index =
     let
-        entryToTuple entry =
-            ( mappableControlToDestinationCode entry.destination, entry.origin )
+        isTargetGamepad unknownGamepad =
+            Gamepad.unknownGetIndex unknownGamepad == index
     in
-        entries
-            |> List.map entryToTuple
-            |> Dict.fromList
-            |> Gamepad.buttonMap
+        blob
+            |> Gamepad.getUnknownGamepads Gamepad.emptyDatabase
+            |> List.filter isTargetGamepad
+            |> List.head
+
+
+notConnectedError : Int -> Outcome presentation
+notConnectedError gamepadIndex =
+    Error <| "Gamepad " ++ toString gamepadIndex ++ " is not connected"
 
 
 
 -- init
 
 
-init : Int -> List ( MappableControl, entry ) -> Model entry
-init gamepadIndex entries =
-    Model
-        { configuredEntries = []
-        , inputState = WaitingForAllButtonsUp
-        , gamepadIndex = gamepadIndex
-        , gamepadId = ""
-        , unconfiguredEntries = entries
-        }
+init : Int -> UnconfiguredButtons presentation -> Model presentation
+init gamepadIndex buttonsToConfigure =
+    WaitingForGamepad gamepadIndex buttonsToConfigure
+
+
+actuallyInit : Gamepad.Blob -> Int -> UnconfiguredButtons presentation -> Outcome presentation
+actuallyInit blob gamepadIndex buttonsToConfigure =
+    case indexToUnknownGamepad blob gamepadIndex of
+        Nothing ->
+            notConnectedError gamepadIndex
+
+        Just targetUnknownGamepad ->
+            { configuredButtons = []
+            , unconfiguredButtons = buttonsToConfigure
+            , inputState = WaitingForAllButtonsUp
+            , targetUnknownGamepad = targetUnknownGamepad
+            }
+                |> Ready
+                |> StillOpen
 
 
 
 -- update
 
 
-configuredEntriesToOutcome : String -> List ConfiguredEntry -> Outcome a
-configuredEntriesToOutcome gamepadId configuredEntries =
-    case configuredEntriesToButtonMap configuredEntries of
-        Err message ->
-            Error "Gamepad.Remap bugged. =("
+configuredButtonsToOutcome : UnknownGamepad -> List ConfiguredEntry -> Outcome a
+configuredButtonsToOutcome targetUnknownGamepad configuredButtons =
+    let
+        configuredButtonToTuple button =
+            ( mappableControlToDestinationCode button.destination, button.origin )
 
-        Ok buttonMap ->
-            Configured gamepadId buttonMap
+        map =
+            configuredButtons
+                |> List.map configuredButtonToTuple
+                |> Dict.fromList
+    in
+        case Gamepad.buttonMapToUpdateDatabase targetUnknownGamepad map of
+            Err message ->
+                Error message
 
-
-skipCurrentEntry : Model entry -> Outcome entry
-skipCurrentEntry (Model model) =
-    case model.unconfiguredEntries of
-        [] ->
-            Error "This should not happen."
-
-        currentEntry :: remainingEntries ->
-            -- Just ditch the current entry
-            if remainingEntries == [] then
-                configuredEntriesToOutcome model.gamepadId model.configuredEntries
-            else
-                StillOpen <| Model { model | unconfiguredEntries = remainingEntries, inputState = WaitingForAllButtonsUp }
+            Ok updateDatabase ->
+                UpdateDatabase updateDatabase
 
 
-onButtonPress : Gamepad.Origin -> Model_ entry -> Outcome entry
+skipCurrentButton : Model presentation -> Outcome presentation
+skipCurrentButton unionModel =
+    case unionModel of
+        WaitingForGamepad gamepadIndex buttonsToConfigure ->
+            StillOpen unionModel
+
+        Ready recordModel ->
+            case recordModel.unconfiguredButtons of
+                -- This should not happen, but we can recover without loss of consistency
+                [] ->
+                    configuredButtonsToOutcome recordModel.targetUnknownGamepad recordModel.configuredButtons
+
+                currentButton :: remainingButton ->
+                    -- Just ditch the current button
+                    if remainingButton == [] then
+                        configuredButtonsToOutcome recordModel.targetUnknownGamepad recordModel.configuredButtons
+                    else
+                        { recordModel
+                            | unconfiguredButtons = remainingButton
+                            , inputState = WaitingForAllButtonsUp
+                        }
+                            |> Ready
+                            |> StillOpen
+
+
+onButtonPress : Gamepad.Origin -> ModelRecord presentation -> Outcome presentation
 onButtonPress origin model =
-    case model.unconfiguredEntries of
+    case model.unconfiguredButtons of
+        -- This should not happen, but we can recover without loss of consistency
         [] ->
-            configuredEntriesToOutcome model.gamepadId model.configuredEntries
+            configuredButtonsToOutcome model.targetUnknownGamepad model.configuredButtons
 
-        currentEntry :: remainingEntries ->
+        currentButton :: remainingButton ->
             let
-                entryConfig =
-                    { destination = Tuple.first currentEntry
+                buttonConfig =
+                    { destination = Tuple.first currentButton
                     , origin = origin
                     }
 
-                configuredEntries =
-                    entryConfig :: model.configuredEntries
+                configuredButtons =
+                    buttonConfig :: model.configuredButtons
             in
-                if remainingEntries == [] then
-                    configuredEntriesToOutcome model.gamepadId configuredEntries
+                if remainingButton == [] then
+                    configuredButtonsToOutcome model.targetUnknownGamepad configuredButtons
                 else
-                    StillOpen <|
-                        Model
-                            { model
-                                | configuredEntries = configuredEntries
-                                , unconfiguredEntries = remainingEntries
-                            }
+                    { model
+                        | configuredButtons = configuredButtons
+                        , unconfiguredButtons = remainingButton
+                    }
+                        |> Ready
+                        |> StillOpen
 
 
-onMaybePressedButton : Maybe Gamepad.Origin -> Model_ entry -> Outcome entry
+onMaybePressedButton : Maybe Gamepad.Origin -> ModelRecord presentation -> Outcome presentation
 onMaybePressedButton maybeOrigin model =
     case ( model.inputState, maybeOrigin ) of
         ( WaitingForAllButtonsUp, Just origin ) ->
-            StillOpen <| Model model
+            model
+                |> Ready
+                |> StillOpen
 
         ( WaitingForAllButtonsUp, Nothing ) ->
-            StillOpen <| Model { model | inputState = WaitingForAnyButtonDown }
+            { model | inputState = WaitingForAnyButtonDown }
+                |> Ready
+                |> StillOpen
 
         ( WaitingForAnyButtonDown, Just origin ) ->
             onButtonPress origin { model | inputState = WaitingForAllButtonsUp }
 
         ( WaitingForAnyButtonDown, Nothing ) ->
-            StillOpen (Model model)
+            model
+                |> Ready
+                |> StillOpen
 
 
-notConnectedError : Int -> Outcome entry
-notConnectedError gamepadIndex =
-    Error <| "Gamepad " ++ toString gamepadIndex ++ " is not connected"
-
-
-update : Msg -> Model entry -> Outcome entry
-update msg (Model model) =
+update : Msg -> Model presentation -> Outcome presentation
+update msg unionModel =
     case msg of
         OnGamepad ( dt, blob ) ->
-            case Gamepad.blobToRawGamepad model.gamepadIndex blob of
-                Nothing ->
-                    notConnectedError model.gamepadIndex
+            case unionModel of
+                WaitingForGamepad index unconfiguredButtons ->
+                    actuallyInit blob index unconfiguredButtons
 
-                Just rawGamepad ->
-                    if not rawGamepad.connected then
-                        notConnectedError model.gamepadIndex
-                    else
-                        onMaybePressedButton (Gamepad.estimateOrigin rawGamepad) { model | gamepadId = Gamepad.rawGetId rawGamepad }
+                Ready model ->
+                    -- fetch the new state of the target gamepad
+                    case indexToUnknownGamepad blob (Gamepad.unknownGetIndex model.targetUnknownGamepad) of
+                        Nothing ->
+                            notConnectedError (Gamepad.unknownGetIndex model.targetUnknownGamepad)
+
+                        Just targetUnknownGamepad ->
+                            onMaybePressedButton (Gamepad.estimateOrigin targetUnknownGamepad) { model | targetUnknownGamepad = targetUnknownGamepad }
 
 
 
 -- view
 
 
-gamepadIndex : Model entry -> Int
-gamepadIndex (Model model) =
-    model.gamepadIndex
+getTargetGamepadIndex : Model presentation -> Int
+getTargetGamepadIndex unionModel =
+    case unionModel of
+        Ready recordModel ->
+            Gamepad.unknownGetIndex recordModel.targetUnknownGamepad
+
+        WaitingForGamepad gamepadIndex buttonsToConfigure ->
+            gamepadIndex
 
 
-currentEntry : Model entry -> Maybe entry
-currentEntry (Model model) =
-    List.head model.unconfiguredEntries |> Maybe.map Tuple.second
+getCurrentButton : Model presentation -> Maybe presentation
+getCurrentButton unionModel =
+    case unionModel of
+        Ready recordModel ->
+            List.head recordModel.unconfiguredButtons |> Maybe.map Tuple.second
+
+        WaitingForGamepad gamepadIndex buttonsToConfigure ->
+            Nothing
 
 
 view : Model String -> String
 view model =
-    currentEntry model |> Maybe.withDefault ""
+    getCurrentButton model |> Maybe.withDefault ""
 
 
 
