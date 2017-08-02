@@ -47,25 +47,36 @@ module Gamepad
         , buttonMapToUpdateDatabase
         )
 
-{-| A library to make sense of navigator.getGamepads()
+{-| A library to make sense of
+[navigator.getGamepads()](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/getGamepads)
 
-You need a JavaScript port to get the return value of `navigator.getGamepads()`
-inside Elm.
-Within the library, this return value is called a [Blob].
+First things first: you need a JavaScript port to get the return value of
+`navigator.getGamepads()` inside Elm.
+You can copy the port files from [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
 
-You also need a [Database] of known button maps, but currently there is no
-reliable way to create a general database of gamepad button maps for browsers,
-so you will have to start with [emptyDatabase] and include a remapping tool to
-your app.
-You can use the bare-bones tool provided in [Gamepad.Remap] or build your own.
-`getUnknownGamepads database blob` will give you a list of connected gamepads
-that need to be mapped.
+Within the library, the thing returned by `navigator.getGamepads()` is called
+a [Blob](#Blob).
 
-Once you have a database, you can get a list of all recognised and connected
-gamepads with `getGamepads database blob`.
+You also need a [Database](#Database) of known button maps.
 
-To access the information of each gamepad, you can use the button getters
-([aIsPressed], [leftX], [rightTriggerValue]...)
+Unfortunately there is no database of all possible gamepads, and I don't think
+it's possible to create one, at least not for browsers as they are currently.
+
+This means that you will have to start with [emptyDatabase](#emptyDatabase) and
+include a remapping tool in your app to allow the user to create the mapping.
+
+You can use the bare-bones remapping tool provided in
+[Gamepad.Remap](#Gamepad-Remap) or build your own.
+
+[getUnknownGamepads](#getUnknownGamepads) will give you a list of connected
+gamepads that need to be mapped.
+
+Once your database contains the maps, you can get a list of all recognised and
+connected gamepads with [getGamepads](#getGamepads).
+
+To access the information of each [Gamepad](#Gamepad), you can use the button
+getters: [aIsPressed](#aIsPressed), [leftX](#leftX),
+[rightTriggerValue](#rightTriggerValue) and so on...
 
 
 # Blob
@@ -75,7 +86,7 @@ To access the information of each gamepad, you can use the button getters
 
 # Database
 
-@docs Database, emptyDatabase, databaseToString, databaseFromString
+@docs Database, emptyDatabase, databaseFromString, databaseToString
 
 
 # Unknown Gamepads
@@ -85,12 +96,12 @@ To access the information of each gamepad, you can use the button getters
 
 # Gamepads
 
-@docs Gamepad, getGamepads, getIndex
-
 Depending on the hardware, the drivers and the browser, some input values
 will be digital (True or False) and some will be analog (0 to 1 or -1 to 1).
 
 The library hides this complexity and converts the values as necessary.
+
+@docs Gamepad, getGamepads, getIndex
 
 
 ### Face buttons
@@ -120,20 +131,21 @@ The library hides this complexity and converts the values as necessary.
 
 # Mapping
 
-@docs Origin, Destination, estimateOrigin, buttonMapToUpdateDatabase
+These are the functions used to write the remapping tool in [Gamepad.Remap](#Gamepad-Remap).
+You need them only if instead of [Gamepad.Remap](#Gamepad-Remap) you want to
+write your own remapping tool.
 
-These are the functions used to write the remapping tool in [Gamepad.Remap].
-You need them only if instead of [Gamepad.Remap] you want to write your own remapping tool.
-
-A button map associates a raw gamepad input, the [Origin], with a button name, the
-[Destination].
+A button map associates a raw gamepad input, the [Origin](#Origin), with a
+button name, the [Destination](#Destination).
 
 The steps to create a button map are roughly:
 
-1.  For every [Destination] your application needs:
+1.  For every [Destination](#Destination) your application should:
       - Ask the user to press or push it.
-      - Use [estimateOrigin] to know which [Origin] is being pressed
-2.  Feed the list generated above to [buttonMapToUpdateDatabase]
+      - Use [estimateOrigin](#estimateOrigin) to know which [Origin](#Origin) is being activated.
+2.  Add the list generated above to your [Database](#Database) with [buttonMapToUpdateDatabase](#buttonMapToUpdateDatabase)
+
+@docs Origin, Destination, estimateOrigin, buttonMapToUpdateDatabase
 
 -}
 
@@ -189,7 +201,7 @@ type ButtonMap
     = ButtonMap String
 
 
-{-| A Blob describes the raw return value of navigator.getGamepads()
+{-| A Blob describes the raw return value of `navigator.getGamepads()`.
 
 The whole point of this library is to transform the Blob into something
 that is nice to use with Elm.
@@ -213,6 +225,8 @@ type alias RawGamepad =
     }
 
 
+{-| A Destination is just a way to references a gamepad input that is understandable for the user.
+-}
 type Destination
     = A
     | B
@@ -239,10 +253,6 @@ type Destination
     | DpadDown
     | DpadLeft
     | DpadRight
-
-
-
--- destinationToString
 
 
 destinationToString : Destination -> String
@@ -409,7 +419,8 @@ buttonMap map =
             |> ButtonMap
 
 
-{-| The function creates a new button map.
+{-| The function inserts a button map for a given gamepad Id in a [Database],
+replacing any previous mapping for that gamepad Id.
 
 The first argument is the gamepad the map is for.
 
@@ -460,7 +471,7 @@ databaseToString (Database database) =
             |> String.join ""
 
 
-{-| Decodes a Database from a string, useful to load a persisted Database.
+{-| Decodes a Database from a String, useful to load a persisted Database.
 
     gamepadDatabase =
         flags.gamepadDatabaseAsString
@@ -667,7 +678,7 @@ getAxis negativeDestination positiveDestination pad =
 -- Unknown Gamepad getters
 
 
-{-| Get the identifier string of an unknown gamepad, as provided by the browser
+{-| Get the identifier String of an unknown gamepad, as provided by the browser
 
     unknownGetId unknownGamepad == "Microsoft Corporation. Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)"
 
