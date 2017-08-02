@@ -64,8 +64,20 @@ subscriptions model =
 ```
 
 
+
+Important!
+==========
+
+Gamepad polling should by synchronised with the browser's animation frame.
+If you are using [elm-lang/animation-frame](http://package.elm-lang.org/packages/elm-lang/animation-frame/latest)
+you should remove it, and use the Time provided by the gamepad port instead,
+which will match the value provided by [AnimationFrame.diff](http://package.elm-lang.org/packages/elm-lang/animation-frame/latest/AnimationFrame#diffs).
+
+
+
 Adding ports
 ============
+
 The ports required by elm-gamepad are no different than any other [Elm port](https://guide.elm-lang.org/interop/javascript.html).
 
 You can see how they are wired in in the [example's index.html](https://github.com/xarvh/elm-gamepad/blob/master/examples/index.html).
@@ -87,6 +99,7 @@ Adding `<script type="text/javascript" src="gamepadPort.js"></script>` to your `
 
 If you do not have another way to persist the gamepad database, you will want
 to add also the local storage port, the procedure is exactly the same.
+
 
 
 What's the problem with Browsers+Gamepads?

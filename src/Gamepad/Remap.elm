@@ -30,7 +30,7 @@ type MappableControl
     | Y
     | Start
     | Back
-    | Guide
+    | Home
     | LeftLeft
     | LeftRight
     | LeftUp
@@ -114,8 +114,8 @@ mappableControlToDestinationCode mappableControl =
         Back ->
             destinationCodes.back
 
-        Guide ->
-            destinationCodes.guide
+        Home ->
+            destinationCodes.home
 
         LeftLeft ->
             destinationCodes.leftLeft
