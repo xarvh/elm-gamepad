@@ -1,7 +1,7 @@
 module Main exposing (..)
 
-import Gamepad exposing (Gamepad, UnknownGamepad)
-import Gamepad.Remap exposing (MappableControl(..), Outcome(..))
+import Gamepad exposing (Gamepad, UnknownGamepad, Destination(..))
+import Gamepad.Remap exposing (Outcome(..))
 import GamepadPort
 import Html exposing (..)
 import Html.Attributes
@@ -72,7 +72,7 @@ allMappableControls =
     , ( Y, "Button Y / Triangle" )
     , ( Start, "Button Start" )
     , ( Back, "Button Back / Select" )
-    , ( Guide, "Guide / Logo / Home" )
+    , ( Home, "Logo / Home / Guide" )
     , ( LeftLeft, "Left Stick: Push Left" )
     , ( LeftRight, "Left Stick: Push Right" )
     , ( LeftUp, "Left Stick: Push Up" )
@@ -245,7 +245,7 @@ viewGamepad gamepad =
                 , viewControl Gamepad.yIsPressed "Y"
                 , viewControl Gamepad.startIsPressed "Start"
                 , viewControl Gamepad.backIsPressed "Back"
-                , viewControl Gamepad.guideIsPressed "Guide"
+                , viewControl Gamepad.homeIsPressed "Home"
                 , viewControl Gamepad.dpadX "Dpad X"
                 , viewControl Gamepad.dpadY "Dpad Y"
                 , viewControl Gamepad.leftX "Left X"

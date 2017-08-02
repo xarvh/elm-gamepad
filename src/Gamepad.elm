@@ -1,33 +1,31 @@
 module Gamepad
     exposing
-        ( Gamepad
-        , UnknownGamepad
+        ( Blob
+          -- database
         , Database
-          -- port stuff
-        , Blob
-          --
-        , getGamepads
-        , getUnknownGamepads
         , emptyDatabase
         , databaseToString
         , databaseFromString
-          -- unknown gamepad
+          -- unknown gamepads
+        , UnknownGamepad
+        , getUnknownGamepads
         , unknownGetId
         , unknownGetIndex
-          -- known gamepad
+          -- known gamepads
+        , Gamepad
+        , getGamepads
         , getIndex
-        , getFeatures
         , aIsPressed
         , bIsPressed
         , xIsPressed
         , yIsPressed
         , startIsPressed
         , backIsPressed
-        , guideIsPressed
-        , dpadUp
-        , dpadDown
-        , dpadLeft
-        , dpadRight
+        , homeIsPressed
+        , dpadUpIsPressed
+        , dpadDownIsPressed
+        , dpadLeftIsPressed
+        , dpadRightIsPressed
         , dpadX
         , dpadY
         , leftX
@@ -44,12 +42,111 @@ module Gamepad
         , rightTriggerValue
           -- mapping
         , Origin
-        , destinationCodes
+        , Destination(..)
         , estimateOrigin
         , buttonMapToUpdateDatabase
         )
 
-{-| @docs Gamepad
+{-| A library to make sense of
+[navigator.getGamepads()](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/getGamepads)
+
+First things first: you need a JavaScript port to get the return value of
+`navigator.getGamepads()` inside Elm.
+You can copy the port files from [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
+
+Within the library, the thing returned by `navigator.getGamepads()` is called
+a [Blob](#Blob).
+
+You also need a [Database](#Database) of known button maps.
+
+Unfortunately there is no database of all possible gamepads, and I don't think
+it's possible to create one, at least not for browsers as they are currently.
+
+This means that you will have to start with [emptyDatabase](#emptyDatabase) and
+include a remapping tool in your app to allow the user to create the mapping.
+
+You can use the bare-bones remapping tool provided in
+[Gamepad.Remap](#Gamepad-Remap) or build your own.
+
+[getUnknownGamepads](#getUnknownGamepads) will give you a list of connected
+gamepads that need to be mapped.
+
+Once your database contains the maps, you can get a list of all recognised and
+connected gamepads with [getGamepads](#getGamepads).
+
+To access the information of each [Gamepad](#Gamepad), you can use the button
+getters: [aIsPressed](#aIsPressed), [leftX](#leftX),
+[rightTriggerValue](#rightTriggerValue) and so on...
+
+
+# Blob
+
+@docs Blob
+
+
+# Database
+
+@docs Database, emptyDatabase, databaseFromString, databaseToString
+
+
+# Unknown Gamepads
+
+@docs UnknownGamepad, getUnknownGamepads, unknownGetId, unknownGetIndex
+
+
+# Gamepads
+
+Depending on the hardware, the drivers and the browser, some input values
+will be digital (True or False) and some will be analog (0 to 1 or -1 to 1).
+
+The library hides this complexity and converts the values as necessary.
+
+@docs Gamepad, getGamepads, getIndex
+
+
+### Face buttons
+
+@docs aIsPressed, bIsPressed, xIsPressed, yIsPressed
+
+
+### Utility buttons
+
+@docs startIsPressed, backIsPressed, homeIsPressed
+
+
+### Digital pad
+
+@docs dpadUpIsPressed, dpadDownIsPressed, dpadLeftIsPressed, dpadRightIsPressed, dpadX, dpadY
+
+
+### Left thumbstick
+
+@docs leftX, leftY, leftStickIsPressed, leftShoulderIsPressed, leftTriggerIsPressed, leftTriggerValue
+
+
+### Right thumbstick
+
+@docs rightX, rightY, rightStickIsPressed, rightShoulderIsPressed, rightTriggerIsPressed, rightTriggerValue
+
+
+# Mapping
+
+These are the functions used to write the remapping tool in [Gamepad.Remap](#Gamepad-Remap).
+You need them only if instead of [Gamepad.Remap](#Gamepad-Remap) you want to
+write your own remapping tool.
+
+A button map associates a raw gamepad input, the [Origin](#Origin), with a
+button name, the [Destination](#Destination).
+
+The steps to create a button map are roughly:
+
+1.  For every [Destination](#Destination) your application should:
+      - Ask the user to press or push it.
+      - Use [estimateOrigin](#estimateOrigin) to know which [Origin](#Origin) is being activated.
+2.  Add the list generated above to your [Database](#Database) with [buttonMapToUpdateDatabase](#buttonMapToUpdateDatabase)
+
+@docs Origin, Destination, estimateOrigin, buttonMapToUpdateDatabase
+
 -}
 
 import Array exposing (Array)
@@ -59,26 +156,42 @@ import Set exposing (Set)
 import Time exposing (Time)
 
 
-{-| exposed types with private constructors
+{-| A recognised gamepad, whose buttons mapping was found in the Database.
+You can use all control getters to query its state.
 -}
 type Gamepad
     = Gamepad String RawGamepad
 
 
+{-| A gamepad that was not found in the Database.
+Because of the sheer diversity of gamepads in the wild, there isn't much that
+you can reliably do with it.
+
+However, you can remap it and add its entry to the database, so that next time
+it will be recognised!
+
+-}
 type UnknownGamepad
     = UnknownGamepad RawGamepad
 
 
+{-| A collection of button maps, by gamepad Id.
+
+If you change the mapping for one gamepad, the mapping will change for all the
+gamepads of that type (ie, all the gamepads that share that Id).
+
+-}
 type Database
     = Database (Dict String ButtonMap)
 
 
+{-| An Origin references an input in the javascript [gamepad](https://w3c.github.io/gamepad/)
+object.
+-}
 type Origin
     = Origin Bool OriginType Int
 
 
-{-| internal types
--}
 type OriginType
     = Axis
     | Button
@@ -88,7 +201,12 @@ type ButtonMap
     = ButtonMap String
 
 
-{-| -}
+{-| A Blob describes the raw return value of `navigator.getGamepads()`.
+
+The whole point of this library is to transform the Blob into something
+that is nice to use with Elm.
+
+-}
 type alias Blob =
     List (Maybe RawGamepad)
 
@@ -107,37 +225,113 @@ type alias RawGamepad =
     }
 
 
+{-| A Destination is just a way to references a gamepad input that is understandable for the user.
+-}
+type Destination
+    = A
+    | B
+    | X
+    | Y
+    | Start
+    | Back
+    | Home
+    | LeftLeft
+    | LeftRight
+    | LeftUp
+    | LeftDown
+    | LeftStick
+    | LeftShoulder
+    | LeftTrigger
+    | RightLeft
+    | RightRight
+    | RightUp
+    | RightDown
+    | RightStick
+    | RightShoulder
+    | RightTrigger
+    | DpadUp
+    | DpadDown
+    | DpadLeft
+    | DpadRight
 
--- destination codes
 
+destinationToString : Destination -> String
+destinationToString destination =
+    case destination of
+        A ->
+            "a"
 
-destinationCodes =
-    { a = "a"
-    , b = "b"
-    , x = "x"
-    , y = "y"
-    , start = "start"
-    , back = "back"
-    , guide = "guide"
-    , leftLeft = "leftleft"
-    , leftRight = "leftright"
-    , leftUp = "leftup"
-    , leftDown = "leftdown"
-    , leftStick = "leftstick"
-    , leftShoulder = "leftshoulder"
-    , leftTrigger = "lefttrigger"
-    , rightLeft = "rightleft"
-    , rightRight = "rightright"
-    , rightUp = "rightup"
-    , rightDown = "rightdown"
-    , rightStick = "rightstick"
-    , rightShoulder = "rightshoulder"
-    , rightTrigger = "righttrigger"
-    , dpadUp = "dpadup"
-    , dpadDown = "dpaddown"
-    , dpadLeft = "dpadleft"
-    , dpadRight = "dpadright"
-    }
+        B ->
+            "b"
+
+        X ->
+            "x"
+
+        Y ->
+            "y"
+
+        Start ->
+            "start"
+
+        Back ->
+            "back"
+
+        Home ->
+            "home"
+
+        LeftLeft ->
+            "leftleft"
+
+        LeftRight ->
+            "leftright"
+
+        LeftUp ->
+            "leftup"
+
+        LeftDown ->
+            "leftdown"
+
+        LeftStick ->
+            "leftstick"
+
+        LeftShoulder ->
+            "leftshoulder"
+
+        LeftTrigger ->
+            "lefttrigger"
+
+        RightLeft ->
+            "rightleft"
+
+        RightRight ->
+            "rightright"
+
+        RightUp ->
+            "rightup"
+
+        RightDown ->
+            "rightdown"
+
+        RightStick ->
+            "rightstick"
+
+        RightShoulder ->
+            "rightshoulder"
+
+        RightTrigger ->
+            "righttrigger"
+
+        DpadUp ->
+            "dpadup"
+
+        DpadDown ->
+            "dpaddown"
+
+        DpadLeft ->
+            "dpadleft"
+
+        DpadRight ->
+            "dpadright"
 
 
 
@@ -166,12 +360,12 @@ map.
         leftUp
 
 -}
-fixAxisCoupling : ( String, String ) -> Dict String Origin -> Dict String Origin
-fixAxisCoupling ( code1, code2 ) map =
-    case ( Dict.get code1 map, Dict.get code2 map ) of
+fixAxisCoupling : ( Destination, Destination ) -> Dict String Origin -> Dict String Origin
+fixAxisCoupling ( destination1, destination2 ) map =
+    case ( Dict.get (destinationToString destination1) map, Dict.get (destinationToString destination2) map ) of
         ( Just (Origin isReverse1 Axis index1), Just (Origin isReverse2 Axis index2) ) ->
             if index1 == index2 then
-                Dict.remove code1 map
+                Dict.remove (destinationToString destination1) map
             else
                 map
 
@@ -179,17 +373,18 @@ fixAxisCoupling ( code1, code2 ) map =
             map
 
 
-fixAllAxesCoupling : Dict String Origin -> Dict String Origin
+fixAllAxesCoupling : List ( String, Origin ) -> List ( String, Origin )
 fixAllAxesCoupling map =
-    [ ( destinationCodes.leftLeft, destinationCodes.leftRight )
-    , ( destinationCodes.leftUp, destinationCodes.leftDown )
-    , ( destinationCodes.rightLeft, destinationCodes.rightRight )
-    , ( destinationCodes.rightUp, destinationCodes.rightDown )
+    [ ( LeftLeft, LeftRight )
+    , ( LeftUp, LeftDown )
+    , ( RightLeft, RightRight )
+    , ( RightUp, RightDown )
     ]
-        |> List.foldr fixAxisCoupling map
+        |> List.foldr fixAxisCoupling (Dict.fromList map)
+        |> Dict.toList
 
 
-buttonMap : Dict String Origin -> Result String ButtonMap
+buttonMap : List ( Destination, Origin ) -> ButtonMap
 buttonMap map =
     let
         hasMinus isReverse =
@@ -209,33 +404,42 @@ buttonMap map =
         originToCode (Origin isReverse originType index) =
             hasMinus isReverse ++ typeToString originType ++ intToString index
 
-        tupleToString ( destinationCode, origin ) =
-            destinationCode ++ ":" ++ originToCode origin
+        tupleDestinationToString ( destination, origin ) =
+            ( destinationToString destination, origin )
+
+        tupleToString ( destinationAsString, origin ) =
+            destinationAsString ++ ":" ++ originToCode origin
     in
         map
+            |> List.map tupleDestinationToString
             |> fixAllAxesCoupling
-            |> Dict.toList
             |> List.map tupleToString
             |> List.sortBy identity
             |> String.join ","
             |> ButtonMap
-            |> Ok
 
 
-buttonMapToUpdateDatabase : UnknownGamepad -> Dict String Origin -> Result String (Database -> Database)
-buttonMapToUpdateDatabase unknownGamepad map =
-    let
-        updateDatabase : ButtonMap -> Database -> Database
-        updateDatabase newButtonMap (Database database) =
-            Dict.insert (unknownGetId unknownGamepad) newButtonMap database |> Database
-    in
-        buttonMap map |> Result.map updateDatabase
+{-| The function inserts a button map for a given gamepad Id in a [Database],
+replacing any previous mapping for that gamepad Id.
+
+The first argument is the gamepad the map is for.
+
+The second argument is the map itself: a List of [Destination]s vs [Origin]s.
+
+The third argument is the [Database] to update.
+
+-}
+buttonMapToUpdateDatabase : UnknownGamepad -> List ( Destination, Origin ) -> Database -> Database
+buttonMapToUpdateDatabase unknownGamepad map (Database database) =
+    Dict.insert (unknownGetId unknownGamepad) (buttonMap map) database |> Database
 
 
 
 -- Encoding and decoding Databases
 
 
+{-| An empty Database.
+-}
 emptyDatabase : Database
 emptyDatabase =
     Database Dict.empty
@@ -246,6 +450,14 @@ buttonMapDivider =
     ",,,"
 
 
+{-| Encodes a Database into a String, useful to persist the Database.
+
+    saveDatabaseToLocalStorageCmd =
+        gamepadDatabase
+            |> databaseToString
+            |> LocalStoragePort.set model.gamepadDatabaseKey
+
+-}
 databaseToString : Database -> String
 databaseToString (Database database) =
     let
@@ -259,6 +471,14 @@ databaseToString (Database database) =
             |> String.join ""
 
 
+{-| Decodes a Database from a String, useful to load a persisted Database.
+
+    gamepadDatabase =
+        flags.gamepadDatabaseAsString
+            |> Gamepad.databaseFromString
+            |> Result.withDefault Gamepad.emptyDatabase
+
+-}
 databaseFromString : String -> Result String Database
 databaseFromString databaseAsString =
     let
@@ -304,6 +524,8 @@ rawGamepadToGamepad (Database database) rawGamepad =
                 |> Maybe.map (\(ButtonMap buttonMapAsString) -> Gamepad buttonMapAsString rawGamepad)
 
 
+{-| Get a List of all recognised Gamepads (ie, those that can be found in the Database).
+-}
 getGamepads : Database -> Blob -> List Gamepad
 getGamepads database blob =
     -- TODO: it might be faster to parse the button maps here, rather than running a regex at every getter
@@ -326,6 +548,10 @@ rawGamepadToUnknownGamepad (Database database) rawGamepad =
                 Just (UnknownGamepad rawGamepad)
 
 
+{-| Get a List of all gamepads that cannot be found in the Database.
+If there are any, you need to run the remapping tool to create a Database
+entry for them, otherwise the user won't be able to use them.
+-}
 getUnknownGamepads : Database -> Blob -> List UnknownGamepad
 getUnknownGamepads database blob =
     blob
@@ -374,11 +600,11 @@ regexMatchToInputTuple match =
             Nothing
 
 
-mappingToRawIndex : String -> String -> Maybe ( OriginType, Int, Bool )
-mappingToRawIndex destinationCode mapping =
+mappingToRawIndex : Destination -> String -> Maybe ( OriginType, Int, Bool )
+mappingToRawIndex destination mapping =
     let
         regex =
-            "(^|,)" ++ destinationCode ++ ":(-)?([a-z]?)([0-9]+)(,|$)"
+            "(^|,)" ++ destinationToString destination ++ ":(-)?([a-z]?)([0-9]+)(,|$)"
     in
         mapping
             |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
@@ -407,9 +633,9 @@ reverseAxis isReverse n =
         n
 
 
-isPressed : String -> Gamepad -> Bool
-isPressed destinationCode (Gamepad mapping rawGamepad) =
-    case mappingToRawIndex destinationCode mapping of
+isPressed : Destination -> Gamepad -> Bool
+isPressed destination (Gamepad mapping rawGamepad) =
+    case mappingToRawIndex destination mapping of
         Nothing ->
             False
 
@@ -425,9 +651,9 @@ isPressed destinationCode (Gamepad mapping rawGamepad) =
                 |> Maybe.withDefault False
 
 
-getValue : String -> Gamepad -> Float
-getValue destinationCode (Gamepad mapping rawGamepad) =
-    case mappingToRawIndex destinationCode mapping of
+getValue : Destination -> Gamepad -> Float
+getValue destination (Gamepad mapping rawGamepad) =
+    case mappingToRawIndex destination mapping of
         Nothing ->
             0
 
@@ -442,9 +668,9 @@ getValue destinationCode (Gamepad mapping rawGamepad) =
                 |> Maybe.withDefault 0
 
 
-getAxis : String -> String -> Gamepad -> Float
-getAxis codeNegative codePositive pad =
-    (getValue codePositive pad - getValue codeNegative pad)
+getAxis : Destination -> Destination -> Gamepad -> Float
+getAxis negativeDestination positiveDestination pad =
+    (getValue positiveDestination pad - getValue negativeDestination pad)
         |> clamp -1 1
 
 
@@ -452,11 +678,22 @@ getAxis codeNegative codePositive pad =
 -- Unknown Gamepad getters
 
 
+{-| Get the identifier String of an unknown gamepad, as provided by the browser
+
+    unknownGetId unknownGamepad == "Microsoft Corporation. Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)"
+
+-}
 unknownGetId : UnknownGamepad -> String
 unknownGetId (UnknownGamepad raw) =
     raw.id
 
 
+{-| Get the index of an unknown gamepad.
+Indexes start from 0.
+
+    unknownGetIndex unknownGamepad == 0
+
+-}
 unknownGetIndex : UnknownGamepad -> Int
 unknownGetIndex (UnknownGamepad raw) =
     raw.index
@@ -466,93 +703,110 @@ unknownGetIndex (UnknownGamepad raw) =
 -- Gamepad getters
 
 
+{-| Get the index of a known gamepad.
+Indexes start from 0.
+
+    getIndex gamepad == 2
+
+-}
 getIndex : Gamepad -> Int
 getIndex (Gamepad string raw) =
     raw.index
 
 
-getFeatures : Gamepad -> Set String
-getFeatures (Gamepad mapping raw) =
-    let
-        stripOrigin mappingEntry =
-            mappingEntry
-                |> String.split ":"
-                |> List.head
-                |> Maybe.withDefault ""
-    in
-        mapping
-            |> String.split ","
-            |> List.map stripOrigin
-            |> Set.fromList
-
-
+{-| -}
+aIsPressed : Gamepad -> Bool
 aIsPressed =
-    isPressed destinationCodes.a
+    isPressed A
 
 
+{-| -}
+bIsPressed : Gamepad -> Bool
 bIsPressed =
-    isPressed destinationCodes.b
+    isPressed B
 
 
+{-| -}
+xIsPressed : Gamepad -> Bool
 xIsPressed =
-    isPressed destinationCodes.x
+    isPressed X
 
 
+{-| -}
+yIsPressed : Gamepad -> Bool
 yIsPressed =
-    isPressed destinationCodes.y
+    isPressed Y
 
 
 
 -- utility
 
 
+{-| -}
+startIsPressed : Gamepad -> Bool
 startIsPressed =
-    isPressed destinationCodes.start
+    isPressed Start
 
 
+{-| -}
+backIsPressed : Gamepad -> Bool
 backIsPressed =
-    isPressed destinationCodes.back
+    isPressed Back
 
 
-guideIsPressed =
-    isPressed destinationCodes.guide
+{-| -}
+homeIsPressed : Gamepad -> Bool
+homeIsPressed =
+    isPressed Home
 
 
 
 -- dpad
 
 
-dpadUp =
-    isPressed destinationCodes.dpadUp
+{-| -}
+dpadUpIsPressed : Gamepad -> Bool
+dpadUpIsPressed =
+    isPressed DpadUp
 
 
-dpadDown =
-    isPressed destinationCodes.dpadDown
+{-| -}
+dpadDownIsPressed : Gamepad -> Bool
+dpadDownIsPressed =
+    isPressed DpadDown
 
 
-dpadLeft =
-    isPressed destinationCodes.dpadLeft
+{-| -}
+dpadLeftIsPressed : Gamepad -> Bool
+dpadLeftIsPressed =
+    isPressed DpadLeft
 
 
-dpadRight =
-    isPressed destinationCodes.dpadRight
+{-| -}
+dpadRightIsPressed : Gamepad -> Bool
+dpadRightIsPressed =
+    isPressed DpadRight
 
 
+{-| -1 means left, 0 means center, 1 means right
+-}
 dpadX : Gamepad -> Int
 dpadX pad =
-    if dpadLeft pad then
+    if dpadLeftIsPressed pad then
         -1
-    else if dpadRight pad then
+    else if dpadRightIsPressed pad then
         1
     else
         0
 
 
+{-| -1 means down, 0 means center, 1 means up
+-}
 dpadY : Gamepad -> Int
 dpadY pad =
-    if dpadUp pad then
+    if dpadUpIsPressed pad then
         1
-    else if dpadDown pad then
+    else if dpadDownIsPressed pad then
         -1
     else
         0
@@ -562,56 +816,86 @@ dpadY pad =
 -- left
 
 
+{-| -1.0 means full left, 1.0 means full right
+-}
+leftX : Gamepad -> Float
 leftX =
-    getAxis destinationCodes.leftLeft destinationCodes.leftRight
+    getAxis LeftLeft LeftRight
 
 
+{-| -1.0 means full down, 1.0 means full up
+-}
+leftY : Gamepad -> Float
 leftY =
-    getAxis destinationCodes.leftDown destinationCodes.leftUp
+    getAxis LeftDown LeftUp
 
 
+{-| -}
+leftStickIsPressed : Gamepad -> Bool
 leftStickIsPressed =
-    isPressed destinationCodes.leftStick
+    isPressed LeftStick
 
 
+{-| -}
+leftShoulderIsPressed : Gamepad -> Bool
 leftShoulderIsPressed =
-    isPressed destinationCodes.leftShoulder
+    isPressed LeftShoulder
 
 
+{-| -}
+leftTriggerIsPressed : Gamepad -> Bool
 leftTriggerIsPressed =
-    isPressed destinationCodes.leftTrigger
+    isPressed LeftTrigger
 
 
+{-| 0.0 means not pressed, 1.0 means fully pressed
+-}
+leftTriggerValue : Gamepad -> Float
 leftTriggerValue =
-    getValue destinationCodes.leftTrigger
+    getValue LeftTrigger
 
 
 
 -- right
 
 
+{-| -1.0 means full left, 1.0 means full right
+-}
+rightX : Gamepad -> Float
 rightX =
-    getAxis destinationCodes.rightLeft destinationCodes.rightRight
+    getAxis RightLeft RightRight
 
 
+{-| -1.0 means full down, 1.0 means full up
+-}
+rightY : Gamepad -> Float
 rightY =
-    getAxis destinationCodes.rightDown destinationCodes.rightUp
+    getAxis RightDown RightUp
 
 
+{-| -}
+rightStickIsPressed : Gamepad -> Bool
 rightStickIsPressed =
-    isPressed destinationCodes.rightStick
+    isPressed RightStick
 
 
+{-| -}
+rightShoulderIsPressed : Gamepad -> Bool
 rightShoulderIsPressed =
-    isPressed destinationCodes.rightShoulder
+    isPressed RightShoulder
 
 
+{-| -}
+rightTriggerIsPressed : Gamepad -> Bool
 rightTriggerIsPressed =
-    isPressed destinationCodes.rightTrigger
+    isPressed RightTrigger
 
 
+{-| 0.0 means not pressed, 1.0 means fully pressed
+-}
+rightTriggerValue : Gamepad -> Float
 rightTriggerValue =
-    getValue destinationCodes.rightTrigger
+    getValue RightTrigger
 
 
 
@@ -656,8 +940,7 @@ estimateThreshold ( origin, confidence ) =
         Just origin
 
 
-{-| The function takes a gamepad state and returns a guess of the origin
-currently activated by the player.
+{-| The function makes a guess of the Origin currently activated by the player.
 -}
 estimateOrigin : UnknownGamepad -> Maybe Origin
 estimateOrigin (UnknownGamepad rawGamepad) =
