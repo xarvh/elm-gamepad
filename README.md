@@ -1,42 +1,109 @@
-Elm Gamepads
-============
+Elm Gamepad
+===========
+
+This library provides an interface to the [Navigator.getGamepads() Web API](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/getGamepads),
+and the tools to remap gamepads and game controllers.
+
+Since pure Elm cannot access `navigator.getGamepads()`, in order to use the
+library you will need to manually add a port; you can use the one provided in
+[port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
 
 [See a running version of examples/Main.elm](https://xarvh.github.io/elm-gamepad/).
+[See an actual game that uses the library](https://xarvh.github.io/elm-haifisch/).
 
 
-TODO
+```elm
+import Gamepad exposing (Gamepad)
+import GamepadPort
+import Time exposing (Time)
+
+
+type alias PlayerControl =
+    { playerId : Int
+    , isFiring : Bool
+    , speed : Float
+    }
+
+
+type alias Model =
+    { gamepadDatabase : Gamepad.Database
+    , playerControls : List PlayerControl
+    }
+
+
+type Msg
+    = OnGamepad ( Time, Gamepad.Blob )
+
+
+gamepadToPlayerControl : Gamepad -> PlayerControl
+gamepadToPlayerControl gamepad =
+    { playerId = Gamepad.getIndex gamepad
+    , isFiring = Gamepad.rightTriggerIsPressed gamepad
+    , speed = Gamepad.leftX gamepad
+    }
+
+
+update : Msg -> Model -> Model
+update msg model =
+    case msg of
+        OnGamepad ( timeSinceLastFrameUpdate, blob ) ->
+            let
+                gamepads =
+                    Gamepad.getGamepads model.gamepadDatabase blob
+
+                playerControls =
+                    List.map gamepadToPlayerControl gamepads
+            in
+                { model | playerControls = playerControls }
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    GamepadPort.gamepad OnGamepad
+
+```
+
+
+Adding ports
+============
+The ports required by elm-gamepad are no different than any other [Elm port](https://guide.elm-lang.org/interop/javascript.html).
+
+You can see how they are wired in in the [example's index.html](https://github.com/xarvh/elm-gamepad/blob/master/examples/index.html).
+
+You can get ready-to-use port code from [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
+
+You will need to:
+
+* Manually copy `GamepadPort.elm` in your Elm sources directory, so that you can import it as `GamepadPort`
+
+* Import `gamepadPort.js` in your app javascript.
+Adding `<script type="text/javascript" src="gamepadPort.js"></script>` to your `index.html` will do.
+
+* Register the port with the Elm app:
+```javascript
+  var elmApp = Elm.Main.fullscreen();
+  addGamepadPort(elmApp);
+```
+
+If you do not have another way to persist the gamepad database, you will want
+to add also the local storage port, the procedure is exactly the same.
 
 
 What's the problem with Browsers+Gamepads?
 ==========================================
 
-The [w3c spec](https://www.w3.org/TR/gamepad/) is still very fresh and different browsers and different browser
-will map the same gamepad differently; for example, Firefox considers the shoulder buttons of my Xbox360
-gamepads as axes, while Chrome detects them as Buttons. The two browsers even produce a different DOMString.
+The [w3c spec](https://www.w3.org/TR/gamepad/) is still very fresh: different
+browsers, browser versions and operative systems will map the same gamepad
+differently; for example, Firefox considers the shoulder buttons of my Xbox360
+gamepads as axes, while Chrome detects them as Buttons, even if both browsers
+produce the same Vendor/Product code.
 
-As it is, using Vendor/Product codes is completely useless.
-Only exact matches of Gamepad.id should be considered.
+Because of this, I don't think there is a way to create a reliable database of
+all game controllers.
 
+The only reliable way is to let the user remap their controller and save the
+resulting map in the local storage.
 
-### SDL
+This library is my attempt at making this as pain-free as possible.
 
-https://github.com/gabomdq/SDL_GameControllerDB/blob/master/gamecontrollerdb.txt
-
-The code represents four big-endian, 32-bit integers
-03000000 5e040000 8e020000 04010000
-
-The second integer is the Vendor id, little-endian 045e
-The third integer is the Product id, little-endian 028e
-
-
-
-### Firefox
-"045e-028e-Microsoft X-Box 360 pad"
-$vendor-$product-$name
-
-
-
-
-### Chromium, Opera
-"Microsoft Corporation. Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)"
-$name (?? Vendor: $vendor Product: $product)
+Any suggestion for improvement is very welcome!
