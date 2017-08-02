@@ -1,7 +1,7 @@
 module Main exposing (..)
 
-import Gamepad exposing (Gamepad, UnknownGamepad)
-import Gamepad.Remap exposing (MappableControl(..), Outcome(..))
+import Gamepad exposing (Gamepad, UnknownGamepad, Destination(..))
+import Gamepad.Remap exposing (Outcome(..))
 import GamepadPort
 import Html exposing (..)
 import Html.Attributes

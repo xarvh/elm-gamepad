@@ -1,8 +1,6 @@
 module Gamepad.Remap
     exposing
-        ( MappableControl(..)
-          -- Elm Architecture
-        , Outcome(..)
+        ( Outcome(..)
         , Model
         , Msg
         , init
@@ -16,39 +14,11 @@ module Gamepad.Remap
         )
 
 import Dict exposing (Dict)
-import Gamepad exposing (destinationCodes, UnknownGamepad)
+import Gamepad exposing (Destination, UnknownGamepad)
 import Time exposing (Time)
 
 
 -- types
-
-
-type MappableControl
-    = A
-    | B
-    | X
-    | Y
-    | Start
-    | Back
-    | Home
-    | LeftLeft
-    | LeftRight
-    | LeftUp
-    | LeftDown
-    | LeftStick
-    | LeftShoulder
-    | LeftTrigger
-    | RightLeft
-    | RightRight
-    | RightUp
-    | RightDown
-    | RightStick
-    | RightShoulder
-    | RightTrigger
-    | DpadUp
-    | DpadDown
-    | DpadLeft
-    | DpadRight
 
 
 type Outcome presentation
@@ -58,7 +28,7 @@ type Outcome presentation
 
 
 type alias ConfiguredEntry =
-    { destination : MappableControl
+    { destination : Destination
     , origin : Gamepad.Origin
     }
 
@@ -69,7 +39,7 @@ type InputState
 
 
 type alias UnconfiguredButtons presentation =
-    List ( MappableControl, presentation )
+    List ( Destination, presentation )
 
 
 type alias ModelRecord presentation =
@@ -87,89 +57,6 @@ type Model presentation
 
 type Msg
     = OnGamepad ( Time, Gamepad.Blob )
-
-
-
--- transforming configured buttons into a configuration string
-
-
-mappableControlToDestinationCode : MappableControl -> String
-mappableControlToDestinationCode mappableControl =
-    case mappableControl of
-        A ->
-            destinationCodes.a
-
-        B ->
-            destinationCodes.b
-
-        X ->
-            destinationCodes.x
-
-        Y ->
-            destinationCodes.y
-
-        Start ->
-            destinationCodes.start
-
-        Back ->
-            destinationCodes.back
-
-        Home ->
-            destinationCodes.home
-
-        LeftLeft ->
-            destinationCodes.leftLeft
-
-        LeftRight ->
-            destinationCodes.leftRight
-
-        LeftUp ->
-            destinationCodes.leftUp
-
-        LeftDown ->
-            destinationCodes.leftDown
-
-        LeftStick ->
-            destinationCodes.leftStick
-
-        LeftShoulder ->
-            destinationCodes.leftShoulder
-
-        LeftTrigger ->
-            destinationCodes.leftTrigger
-
-        RightLeft ->
-            destinationCodes.rightLeft
-
-        RightRight ->
-            destinationCodes.rightRight
-
-        RightUp ->
-            destinationCodes.rightUp
-
-        RightDown ->
-            destinationCodes.rightDown
-
-        RightStick ->
-            destinationCodes.rightStick
-
-        RightShoulder ->
-            destinationCodes.rightShoulder
-
-        RightTrigger ->
-            destinationCodes.rightTrigger
-
-        DpadUp ->
-            destinationCodes.dpadUp
-
-        DpadDown ->
-            destinationCodes.dpadDown
-
-        DpadLeft ->
-            destinationCodes.dpadLeft
-
-        DpadRight ->
-            destinationCodes.dpadRight
 
 
 
@@ -226,19 +113,13 @@ configuredButtonsToOutcome : UnknownGamepad -> List ConfiguredEntry -> Outcome a
 configuredButtonsToOutcome targetUnknownGamepad configuredButtons =
     let
         configuredButtonToTuple button =
-            ( mappableControlToDestinationCode button.destination, button.origin )
+            ( button.destination, button.origin )
 
         map =
             configuredButtons
                 |> List.map configuredButtonToTuple
-                |> Dict.fromList
     in
-        case Gamepad.buttonMapToUpdateDatabase targetUnknownGamepad map of
-            Err message ->
-                Error message
-
-            Ok updateDatabase ->
-                UpdateDatabase updateDatabase
+        Gamepad.buttonMapToUpdateDatabase targetUnknownGamepad map |> UpdateDatabase
 
 
 skipCurrentButton : Model presentation -> Outcome presentation

@@ -42,7 +42,7 @@ module Gamepad
         , rightTriggerValue
           -- mapping
         , Origin
-        , destinationCodes
+        , Destination(..)
         , estimateOrigin
         , buttonMapToUpdateDatabase
         )
@@ -120,7 +120,7 @@ The library hides this complexity and converts the values as necessary.
 
 # Mapping
 
-@docs Origin, destinationCodes, estimateOrigin, buttonMapToUpdateDatabase
+@docs Origin, Destination, estimateOrigin, buttonMapToUpdateDatabase
 
 These are the functions used to write the remapping tool in [Gamepad.Remap].
 You need them only if instead of [Gamepad.Remap] you want to write your own remapping tool.
@@ -129,13 +129,11 @@ A button map associates a raw gamepad input, the [Origin], with a button name, t
 [Destination].
 
 The steps to create a button map are roughly:
-1. For every [Destination] your application needs:
-  * Ask the user to press or push it.
-  * Use [estimateOrigin] to know which [Origin] is being pressed
-1. Feed the list generated above to [buttonMapToUpdateDatabase]
 
-
-
+1.  For every [Destination] your application needs:
+      - Ask the user to press or push it.
+      - Use [estimateOrigin] to know which [Origin] is being pressed
+2.  Feed the list generated above to [buttonMapToUpdateDatabase]
 
 -}
 
@@ -215,66 +213,115 @@ type alias RawGamepad =
     }
 
 
+type Destination
+    = A
+    | B
+    | X
+    | Y
+    | Start
+    | Back
+    | Home
+    | LeftLeft
+    | LeftRight
+    | LeftUp
+    | LeftDown
+    | LeftStick
+    | LeftShoulder
+    | LeftTrigger
+    | RightLeft
+    | RightRight
+    | RightUp
+    | RightDown
+    | RightStick
+    | RightShoulder
+    | RightTrigger
+    | DpadUp
+    | DpadDown
+    | DpadLeft
+    | DpadRight
 
--- destination codes
 
 
-{-| This record collects all the destination codes recognised by the library.
--}
-destinationCodes :
-    { a : String
-    , b : String
-    , x : String
-    , y : String
-    , start : String
-    , back : String
-    , home : String
-    , leftLeft : String
-    , leftRight : String
-    , leftUp : String
-    , leftDown : String
-    , leftStick : String
-    , leftShoulder : String
-    , leftTrigger : String
-    , rightLeft : String
-    , rightRight : String
-    , rightUp : String
-    , rightDown : String
-    , rightStick : String
-    , rightShoulder : String
-    , rightTrigger : String
-    , dpadUp : String
-    , dpadDown : String
-    , dpadLeft : String
-    , dpadRight : String
-    }
-destinationCodes =
-    { a = "a"
-    , b = "b"
-    , x = "x"
-    , y = "y"
-    , start = "start"
-    , back = "back"
-    , home = "home"
-    , leftLeft = "leftleft"
-    , leftRight = "leftright"
-    , leftUp = "leftup"
-    , leftDown = "leftdown"
-    , leftStick = "leftstick"
-    , leftShoulder = "leftshoulder"
-    , leftTrigger = "lefttrigger"
-    , rightLeft = "rightleft"
-    , rightRight = "rightright"
-    , rightUp = "rightup"
-    , rightDown = "rightdown"
-    , rightStick = "rightstick"
-    , rightShoulder = "rightshoulder"
-    , rightTrigger = "righttrigger"
-    , dpadUp = "dpadup"
-    , dpadDown = "dpaddown"
-    , dpadLeft = "dpadleft"
-    , dpadRight = "dpadright"
-    }
+-- destinationToString
+
+
+destinationToString : Destination -> String
+destinationToString destination =
+    case destination of
+        A ->
+            "a"
+
+        B ->
+            "b"
+
+        X ->
+            "x"
+
+        Y ->
+            "y"
+
+        Start ->
+            "start"
+
+        Back ->
+            "back"
+
+        Home ->
+            "home"
+
+        LeftLeft ->
+            "leftleft"
+
+        LeftRight ->
+            "leftright"
+
+        LeftUp ->
+            "leftup"
+
+        LeftDown ->
+            "leftdown"
+
+        LeftStick ->
+            "leftstick"
+
+        LeftShoulder ->
+            "leftshoulder"
+
+        LeftTrigger ->
+            "lefttrigger"
+
+        RightLeft ->
+            "rightleft"
+
+        RightRight ->
+            "rightright"
+
+        RightUp ->
+            "rightup"
+
+        RightDown ->
+            "rightdown"
+
+        RightStick ->
+            "rightstick"
+
+        RightShoulder ->
+            "rightshoulder"
+
+        RightTrigger ->
+            "righttrigger"
+
+        DpadUp ->
+            "dpadup"
+
+        DpadDown ->
+            "dpaddown"
+
+        DpadLeft ->
+            "dpadleft"
+
+        DpadRight ->
+            "dpadright"
 
 
 
@@ -303,12 +350,12 @@ map.
         leftUp
 
 -}
-fixAxisCoupling : ( String, String ) -> Dict String Origin -> Dict String Origin
-fixAxisCoupling ( code1, code2 ) map =
-    case ( Dict.get code1 map, Dict.get code2 map ) of
+fixAxisCoupling : ( Destination, Destination ) -> Dict String Origin -> Dict String Origin
+fixAxisCoupling ( destination1, destination2 ) map =
+    case ( Dict.get (destinationToString destination1) map, Dict.get (destinationToString destination2) map ) of
         ( Just (Origin isReverse1 Axis index1), Just (Origin isReverse2 Axis index2) ) ->
             if index1 == index2 then
-                Dict.remove code1 map
+                Dict.remove (destinationToString destination1) map
             else
                 map
 
@@ -316,17 +363,18 @@ fixAxisCoupling ( code1, code2 ) map =
             map
 
 
-fixAllAxesCoupling : Dict String Origin -> Dict String Origin
+fixAllAxesCoupling : List ( String, Origin ) -> List ( String, Origin )
 fixAllAxesCoupling map =
-    [ ( destinationCodes.leftLeft, destinationCodes.leftRight )
-    , ( destinationCodes.leftUp, destinationCodes.leftDown )
-    , ( destinationCodes.rightLeft, destinationCodes.rightRight )
-    , ( destinationCodes.rightUp, destinationCodes.rightDown )
+    [ ( LeftLeft, LeftRight )
+    , ( LeftUp, LeftDown )
+    , ( RightLeft, RightRight )
+    , ( RightUp, RightDown )
     ]
-        |> List.foldr fixAxisCoupling map
+        |> List.foldr fixAxisCoupling (Dict.fromList map)
+        |> Dict.toList
 
 
-buttonMap : Dict String Origin -> Result String ButtonMap
+buttonMap : List ( Destination, Origin ) -> ButtonMap
 buttonMap map =
     let
         hasMinus isReverse =
@@ -346,45 +394,33 @@ buttonMap map =
         originToCode (Origin isReverse originType index) =
             hasMinus isReverse ++ typeToString originType ++ intToString index
 
-        tupleToString ( destinationCode, origin ) =
-            destinationCode ++ ":" ++ originToCode origin
+        tupleDestinationToString ( destination, origin ) =
+            ( destinationToString destination, origin )
+
+        tupleToString ( destinationAsString, origin ) =
+            destinationAsString ++ ":" ++ originToCode origin
     in
         map
+            |> List.map tupleDestinationToString
             |> fixAllAxesCoupling
-            |> Dict.toList
             |> List.map tupleToString
             |> List.sortBy identity
             |> String.join ","
             |> ButtonMap
-            |> Ok
 
 
 {-| The function creates a new button map.
 
 The first argument is the gamepad the map is for.
 
-The second argument is the map itself: a dictionary of destinations vs origins.
+The second argument is the map itself: a List of [Destination]s vs [Origin]s.
 
-On success, the function will provide a function that inserts the new map in
-a Database, replacing any previous mapping for that gamepad.
-
-    ( updatedDatabase, maybeError ) =
-        case buttonMapToUpdateDatabase unknownGamepad buttonMap of
-            Err message ->
-                ( oldDatabase, Just message )
-
-            Ok updateDatabase ->
-                ( updateDatabase oldDatabase, Nothing )
+The third argument is the [Database] to update.
 
 -}
-buttonMapToUpdateDatabase : UnknownGamepad -> Dict String Origin -> Result String (Database -> Database)
-buttonMapToUpdateDatabase unknownGamepad map =
-    let
-        updateDatabase : ButtonMap -> Database -> Database
-        updateDatabase newButtonMap (Database database) =
-            Dict.insert (unknownGetId unknownGamepad) newButtonMap database |> Database
-    in
-        buttonMap map |> Result.map updateDatabase
+buttonMapToUpdateDatabase : UnknownGamepad -> List ( Destination, Origin ) -> Database -> Database
+buttonMapToUpdateDatabase unknownGamepad map (Database database) =
+    Dict.insert (unknownGetId unknownGamepad) (buttonMap map) database |> Database
 
 
 
@@ -553,11 +589,11 @@ regexMatchToInputTuple match =
             Nothing
 
 
-mappingToRawIndex : String -> String -> Maybe ( OriginType, Int, Bool )
-mappingToRawIndex destinationCode mapping =
+mappingToRawIndex : Destination -> String -> Maybe ( OriginType, Int, Bool )
+mappingToRawIndex destination mapping =
     let
         regex =
-            "(^|,)" ++ destinationCode ++ ":(-)?([a-z]?)([0-9]+)(,|$)"
+            "(^|,)" ++ destinationToString destination ++ ":(-)?([a-z]?)([0-9]+)(,|$)"
     in
         mapping
             |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
@@ -586,9 +622,9 @@ reverseAxis isReverse n =
         n
 
 
-isPressed : String -> Gamepad -> Bool
-isPressed destinationCode (Gamepad mapping rawGamepad) =
-    case mappingToRawIndex destinationCode mapping of
+isPressed : Destination -> Gamepad -> Bool
+isPressed destination (Gamepad mapping rawGamepad) =
+    case mappingToRawIndex destination mapping of
         Nothing ->
             False
 
@@ -604,9 +640,9 @@ isPressed destinationCode (Gamepad mapping rawGamepad) =
                 |> Maybe.withDefault False
 
 
-getValue : String -> Gamepad -> Float
-getValue destinationCode (Gamepad mapping rawGamepad) =
-    case mappingToRawIndex destinationCode mapping of
+getValue : Destination -> Gamepad -> Float
+getValue destination (Gamepad mapping rawGamepad) =
+    case mappingToRawIndex destination mapping of
         Nothing ->
             0
 
@@ -621,9 +657,9 @@ getValue destinationCode (Gamepad mapping rawGamepad) =
                 |> Maybe.withDefault 0
 
 
-getAxis : String -> String -> Gamepad -> Float
-getAxis codeNegative codePositive pad =
-    (getValue codePositive pad - getValue codeNegative pad)
+getAxis : Destination -> Destination -> Gamepad -> Float
+getAxis negativeDestination positiveDestination pad =
+    (getValue positiveDestination pad - getValue negativeDestination pad)
         |> clamp -1 1
 
 
@@ -670,25 +706,25 @@ getIndex (Gamepad string raw) =
 {-| -}
 aIsPressed : Gamepad -> Bool
 aIsPressed =
-    isPressed destinationCodes.a
+    isPressed A
 
 
 {-| -}
 bIsPressed : Gamepad -> Bool
 bIsPressed =
-    isPressed destinationCodes.b
+    isPressed B
 
 
 {-| -}
 xIsPressed : Gamepad -> Bool
 xIsPressed =
-    isPressed destinationCodes.x
+    isPressed X
 
 
 {-| -}
 yIsPressed : Gamepad -> Bool
 yIsPressed =
-    isPressed destinationCodes.y
+    isPressed Y
 
 
 
@@ -698,19 +734,19 @@ yIsPressed =
 {-| -}
 startIsPressed : Gamepad -> Bool
 startIsPressed =
-    isPressed destinationCodes.start
+    isPressed Start
 
 
 {-| -}
 backIsPressed : Gamepad -> Bool
 backIsPressed =
-    isPressed destinationCodes.back
+    isPressed Back
 
 
 {-| -}
 homeIsPressed : Gamepad -> Bool
 homeIsPressed =
-    isPressed destinationCodes.home
+    isPressed Home
 
 
 
@@ -720,25 +756,25 @@ homeIsPressed =
 {-| -}
 dpadUpIsPressed : Gamepad -> Bool
 dpadUpIsPressed =
-    isPressed destinationCodes.dpadUp
+    isPressed DpadUp
 
 
 {-| -}
 dpadDownIsPressed : Gamepad -> Bool
 dpadDownIsPressed =
-    isPressed destinationCodes.dpadDown
+    isPressed DpadDown
 
 
 {-| -}
 dpadLeftIsPressed : Gamepad -> Bool
 dpadLeftIsPressed =
-    isPressed destinationCodes.dpadLeft
+    isPressed DpadLeft
 
 
 {-| -}
 dpadRightIsPressed : Gamepad -> Bool
 dpadRightIsPressed =
-    isPressed destinationCodes.dpadRight
+    isPressed DpadRight
 
 
 {-| -1 means left, 0 means center, 1 means right
@@ -773,39 +809,39 @@ dpadY pad =
 -}
 leftX : Gamepad -> Float
 leftX =
-    getAxis destinationCodes.leftLeft destinationCodes.leftRight
+    getAxis LeftLeft LeftRight
 
 
 {-| -1.0 means full down, 1.0 means full up
 -}
 leftY : Gamepad -> Float
 leftY =
-    getAxis destinationCodes.leftDown destinationCodes.leftUp
+    getAxis LeftDown LeftUp
 
 
 {-| -}
 leftStickIsPressed : Gamepad -> Bool
 leftStickIsPressed =
-    isPressed destinationCodes.leftStick
+    isPressed LeftStick
 
 
 {-| -}
 leftShoulderIsPressed : Gamepad -> Bool
 leftShoulderIsPressed =
-    isPressed destinationCodes.leftShoulder
+    isPressed LeftShoulder
 
 
 {-| -}
 leftTriggerIsPressed : Gamepad -> Bool
 leftTriggerIsPressed =
-    isPressed destinationCodes.leftTrigger
+    isPressed LeftTrigger
 
 
 {-| 0.0 means not pressed, 1.0 means fully pressed
 -}
 leftTriggerValue : Gamepad -> Float
 leftTriggerValue =
-    getValue destinationCodes.leftTrigger
+    getValue LeftTrigger
 
 
 
@@ -816,39 +852,39 @@ leftTriggerValue =
 -}
 rightX : Gamepad -> Float
 rightX =
-    getAxis destinationCodes.rightLeft destinationCodes.rightRight
+    getAxis RightLeft RightRight
 
 
 {-| -1.0 means full down, 1.0 means full up
 -}
 rightY : Gamepad -> Float
 rightY =
-    getAxis destinationCodes.rightDown destinationCodes.rightUp
+    getAxis RightDown RightUp
 
 
 {-| -}
 rightStickIsPressed : Gamepad -> Bool
 rightStickIsPressed =
-    isPressed destinationCodes.rightStick
+    isPressed RightStick
 
 
 {-| -}
 rightShoulderIsPressed : Gamepad -> Bool
 rightShoulderIsPressed =
-    isPressed destinationCodes.rightShoulder
+    isPressed RightShoulder
 
 
 {-| -}
 rightTriggerIsPressed : Gamepad -> Bool
 rightTriggerIsPressed =
-    isPressed destinationCodes.rightTrigger
+    isPressed RightTrigger
 
 
 {-| 0.0 means not pressed, 1.0 means fully pressed
 -}
 rightTriggerValue : Gamepad -> Float
 rightTriggerValue =
-    getValue destinationCodes.rightTrigger
+    getValue RightTrigger
 
 
 
