@@ -78,19 +78,19 @@ allMappableControls =
     , ( LeftUp, "Left Stick: Push Up" )
     , ( LeftDown, "Left Stick: Push Down" )
     , ( LeftStick, "Left Stick: Click" )
-    , ( LeftShoulder, "Left Shoulder Button" )
+    , ( LeftBumper, "Left Bumper Button" )
     , ( LeftTrigger, "Left Trigger / Left Analog Lever" )
     , ( RightLeft, "Right Stick: Push Left" )
     , ( RightRight, "Right Stick: Push Right" )
     , ( RightUp, "Right Stick: Push Up" )
     , ( RightDown, "Right Stick: Push Down" )
     , ( RightStick, "Right Stick: Click" )
-    , ( RightShoulder, "Right Shoulder Button" )
+    , ( RightBumper, "Right Bumper Button" )
     , ( RightTrigger, "Right Trigger / Right Analog Lever" )
-    , ( DpadUp, "Digital Pad Up" )
-    , ( DpadDown, "Digital Pad Down" )
-    , ( DpadLeft, "Digital Pad Left" )
-    , ( DpadRight, "Digital Pad Right" )
+    , ( DpadUp, "Directional Pad Up" )
+    , ( DpadDown, "Directional Pad Down" )
+    , ( DpadLeft, "Directional Pad Left" )
+    , ( DpadRight, "Directional Pad Right" )
     ]
 
 
@@ -251,13 +251,13 @@ viewGamepad gamepad =
                 , viewControl Gamepad.leftX "Left X"
                 , viewControl Gamepad.leftY "Left Y"
                 , viewControl Gamepad.leftStickIsPressed "Left Stick"
-                , viewControl Gamepad.leftShoulderIsPressed "Left Shoulder"
+                , viewControl Gamepad.leftBumperIsPressed "Left Bumper"
                 , viewControl Gamepad.leftTriggerIsPressed "Left Trigger (digital)"
                 , viewControl Gamepad.leftTriggerValue "Left Trigger (analog)"
                 , viewControl Gamepad.rightX "Right X"
                 , viewControl Gamepad.rightY "Right Y"
                 , viewControl Gamepad.rightStickIsPressed "Right Stick"
-                , viewControl Gamepad.rightShoulderIsPressed "Right Shoulder"
+                , viewControl Gamepad.rightBumperIsPressed "Right Bumper"
                 , viewControl Gamepad.rightTriggerIsPressed "Right Trigger (digital)"
                 , viewControl Gamepad.rightTriggerValue "Right Trigger (analog)"
                 ]

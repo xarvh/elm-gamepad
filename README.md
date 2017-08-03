@@ -8,8 +8,9 @@ Since pure Elm cannot access `navigator.getGamepads()`, in order to use the
 library you will need to manually add a port; you can use the one provided in
 [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
 
-[See a running version of examples/Main.elm](https://xarvh.github.io/elm-gamepad/).
-[See an actual game that uses the library](https://xarvh.github.io/elm-haifisch/).
+* [See a running version of examples/Main.elm](https://xarvh.github.io/elm-gamepad/examples/)
+
+* [See an actual game that uses the library](https://xarvh.github.io/elm-haifisch/)
 
 
 ```elm
@@ -69,9 +70,10 @@ Important!
 ==========
 
 Gamepad polling should by synchronised with the browser's animation frame.
+
 If you are using [elm-lang/animation-frame](http://package.elm-lang.org/packages/elm-lang/animation-frame/latest)
-you should remove it, and use the Time provided by the gamepad port instead,
-which will match the value provided by [AnimationFrame.diff](http://package.elm-lang.org/packages/elm-lang/animation-frame/latest/AnimationFrame#diffs).
+you should remove it, and instead use the `Time` provided by the gamepad port,
+which works like the value provided by [AnimationFrame.diffs](http://package.elm-lang.org/packages/elm-lang/animation-frame/latest/AnimationFrame#diffs).
 
 
 
@@ -82,14 +84,14 @@ The ports required by elm-gamepad are no different than any other [Elm port](htt
 
 You can see how they are wired in in the [example's index.html](https://github.com/xarvh/elm-gamepad/blob/master/examples/index.html).
 
-You can get ready-to-use port code from [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
-
-You will need to:
+You can get ready-to-use port code from [port/](https://github.com/xarvh/elm-gamepad/tree/master/port); you will need to:
 
 * Manually copy `GamepadPort.elm` in your Elm sources directory, so that you can import it as `GamepadPort`
 
-* Import `gamepadPort.js` in your app javascript.
-Adding `<script type="text/javascript" src="gamepadPort.js"></script>` to your `index.html` will do.
+* Import `gamepadPort.js` in your app JavaScript:
+```html
+<script type="text/javascript" src="gamepadPort.js"></script>
+```
 
 * Register the port with the Elm app:
 ```javascript
