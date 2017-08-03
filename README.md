@@ -9,6 +9,7 @@ library you will need to manually add a port; you can use the one provided in
 [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
 
 [See a running version of examples/Main.elm](https://xarvh.github.io/elm-gamepad/).
+
 [See an actual game that uses the library](https://xarvh.github.io/elm-haifisch/).
 
 

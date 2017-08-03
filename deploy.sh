@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-ADD=index.html
+ADD=examples/app.js
 
 
 CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
@@ -20,7 +20,7 @@ git branch -D gh-pages
 git checkout -b gh-pages
 
 cd $(dirname $0)/examples
-elm-make --yes Main.elm --output=../index.html
+make
 cd ..
 
 git add -f $ADD
