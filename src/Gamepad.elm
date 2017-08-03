@@ -57,12 +57,10 @@ You can copy the port files from [port/](https://github.com/xarvh/elm-gamepad/tr
 Within the library, the thing returned by `navigator.getGamepads()` is called
 a [Blob](#Blob).
 
-You also need a [Database](#Database) of known button maps.
-
-Unfortunately there is no database of all possible gamepads, and I don't think
-it's possible to create one, at least not for browsers as they are currently.
-
-This means that you will have to start with [emptyDatabase](#emptyDatabase) and
+You also need a [Database](#Database) of known button maps;
+unfortunately there is no database of all possible gamepads, and I don't think
+it's possible to create one, at least not for browsers as they are currently,
+this means that you will have to start with [emptyDatabase](#emptyDatabase) and
 include a remapping tool in your app to allow the user to create the mapping.
 
 You can use the bare-bones remapping tool provided in
@@ -140,10 +138,12 @@ button name, the [Destination](#Destination).
 
 The steps to create a button map are roughly:
 
-1.  For every [Destination](#Destination) your application should:
-      - Ask the user to press or push it.
+1.  For every [Destination](#Destination) your application requires, you should:
+      - Ask the user to press/push it.
       - Use [estimateOrigin](#estimateOrigin) to know which [Origin](#Origin) is being activated.
-2.  Add the list generated above to your [Database](#Database) with [buttonMapToUpdateDatabase](#buttonMapToUpdateDatabase)
+      - Store this [Origin](#Origin) in a tuple together with its [Destination](#Destination).
+2.  Pass the list of `(Destination, Origin)` tuples to [buttonMapToUpdateDatabase](#buttonMapToUpdateDatabase)
+    to add the new mapping to your [Database](#Database).
 
 @docs Origin, Destination, estimateOrigin, buttonMapToUpdateDatabase
 
@@ -419,14 +419,15 @@ buttonMap map =
             |> ButtonMap
 
 
-{-| The function inserts a button map for a given gamepad Id in a [Database],
+{-| The function inserts a button map for a given gamepad Id in a [Database](#Database),
 replacing any previous mapping for that gamepad Id.
 
 The first argument is the gamepad the map is for.
 
-The second argument is the map itself: a List of [Destination]s vs [Origin]s.
+The second argument is the map itself: a List of [Destination](#Destination)s vs
+[Origin](#Origin)s.
 
-The third argument is the [Database] to update.
+The third argument is the [Database](#Database) to update.
 
 -}
 buttonMapToUpdateDatabase : UnknownGamepad -> List ( Destination, Origin ) -> Database -> Database
@@ -940,7 +941,7 @@ estimateThreshold ( origin, confidence ) =
         Just origin
 
 
-{-| The function makes a guess of the Origin currently activated by the player.
+{-| The function guesses the Origin currently activated by the player.
 -}
 estimateOrigin : UnknownGamepad -> Maybe Origin
 estimateOrigin (UnknownGamepad rawGamepad) =

@@ -26,7 +26,7 @@ one by one, and associate each with whatever button/stick the user moves.
 
 You can abort the remapping simply by not showing it and ignoring its `Msg`s.
 
-Remember that, once saved, the remap will affect all gamepads of the same
+Remember that, once added to a Database, the remap will affect all gamepads of the same
 type (ie, with the same id).
 
 
