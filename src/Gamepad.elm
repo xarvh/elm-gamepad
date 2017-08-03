@@ -31,13 +31,13 @@ module Gamepad
         , leftX
         , leftY
         , leftStickIsPressed
-        , leftShoulderIsPressed
+        , leftBumperIsPressed
         , leftTriggerIsPressed
         , leftTriggerValue
         , rightX
         , rightY
         , rightStickIsPressed
-        , rightShoulderIsPressed
+        , rightBumperIsPressed
         , rightTriggerIsPressed
         , rightTriggerValue
           -- mapping
@@ -121,12 +121,12 @@ The library hides this complexity and converts the values as necessary.
 
 ### Left thumbstick
 
-@docs leftX, leftY, leftStickIsPressed, leftShoulderIsPressed, leftTriggerIsPressed, leftTriggerValue
+@docs leftX, leftY, leftStickIsPressed, leftBumperIsPressed, leftTriggerIsPressed, leftTriggerValue
 
 
 ### Right thumbstick
 
-@docs rightX, rightY, rightStickIsPressed, rightShoulderIsPressed, rightTriggerIsPressed, rightTriggerValue
+@docs rightX, rightY, rightStickIsPressed, rightBumperIsPressed, rightTriggerIsPressed, rightTriggerValue
 
 
 # Mapping
@@ -240,14 +240,14 @@ type Destination
     | LeftUp
     | LeftDown
     | LeftStick
-    | LeftShoulder
+    | LeftBumper
     | LeftTrigger
     | RightLeft
     | RightRight
     | RightUp
     | RightDown
     | RightStick
-    | RightShoulder
+    | RightBumper
     | RightTrigger
     | DpadUp
     | DpadDown
@@ -294,8 +294,8 @@ destinationToString destination =
         LeftStick ->
             "leftstick"
 
-        LeftShoulder ->
-            "leftshoulder"
+        LeftBumper ->
+            "leftbumper"
 
         LeftTrigger ->
             "lefttrigger"
@@ -315,8 +315,8 @@ destinationToString destination =
         RightStick ->
             "rightstick"
 
-        RightShoulder ->
-            "rightshoulder"
+        RightBumper ->
+            "rightbumper"
 
         RightTrigger ->
             "righttrigger"
@@ -837,9 +837,9 @@ leftStickIsPressed =
 
 
 {-| -}
-leftShoulderIsPressed : Gamepad -> Bool
-leftShoulderIsPressed =
-    isPressed LeftShoulder
+leftBumperIsPressed : Gamepad -> Bool
+leftBumperIsPressed =
+    isPressed LeftBumper
 
 
 {-| -}
@@ -880,9 +880,9 @@ rightStickIsPressed =
 
 
 {-| -}
-rightShoulderIsPressed : Gamepad -> Bool
-rightShoulderIsPressed =
-    isPressed RightShoulder
+rightBumperIsPressed : Gamepad -> Bool
+rightBumperIsPressed =
+    isPressed RightBumper
 
 
 {-| -}
