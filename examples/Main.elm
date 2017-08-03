@@ -87,10 +87,10 @@ allMappableControls =
     , ( RightStick, "Right Stick: Click" )
     , ( RightBumper, "Right Bumper Button" )
     , ( RightTrigger, "Right Trigger / Right Analog Lever" )
-    , ( DpadUp, "Digital Pad Up" )
-    , ( DpadDown, "Digital Pad Down" )
-    , ( DpadLeft, "Digital Pad Left" )
-    , ( DpadRight, "Digital Pad Right" )
+    , ( DpadUp, "Directional Pad Up" )
+    , ( DpadDown, "Directional Pad Down" )
+    , ( DpadLeft, "Directional Pad Left" )
+    , ( DpadRight, "Directional Pad Right" )
     ]
 
 

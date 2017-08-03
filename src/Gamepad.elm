@@ -114,7 +114,7 @@ The library hides this complexity and converts the values as necessary.
 @docs startIsPressed, backIsPressed, homeIsPressed
 
 
-### Digital pad
+### Directional pad
 
 @docs dpadUpIsPressed, dpadDownIsPressed, dpadLeftIsPressed, dpadRightIsPressed, dpadX, dpadY
 
