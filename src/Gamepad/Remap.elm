@@ -12,6 +12,7 @@ module Gamepad.Remap
         , getCurrentButton
         , getTargetGamepadIndex
         , skipCurrentButton
+        , testMsg
         )
 
 {-| This module contains the [Elm Architecture](#https://guide.elm-lang.org/architecture/)
@@ -37,7 +38,7 @@ type (ie, with the same id).
 
 # Utility
 
-@docs getCurrentButton, getTargetGamepadIndex, skipCurrentButton
+@docs getCurrentButton, getTargetGamepadIndex, skipCurrentButton, testMsg
 
 -}
 
@@ -116,6 +117,13 @@ type Msg
     = OnGamepad ( Time, Gamepad.Blob )
 
 
+{-| This is for testing only. Don't use it.
+-}
+testMsg : Gamepad.Blob -> Msg
+testMsg blob =
+    OnGamepad ( 16.6, blob )
+
+
 
 -- helpers
 
@@ -127,7 +135,7 @@ indexToUnknownGamepad blob index =
             Gamepad.unknownGetIndex unknownGamepad == index
     in
         blob
-            |> Gamepad.getUnknownGamepads Gamepad.emptyDatabase
+            |> Gamepad.getAllGamepadsAsUnknown
             |> List.filter isTargetGamepad
             |> List.head
 

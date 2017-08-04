@@ -1,5 +1,6 @@
-Elm Gamepad
+Elm Gamepad [![Travis build Status](https://travis-ci.org/xarvh/elm-gamepad.svg?branch=master)](http://travis-ci.org/xarvh/elm-gamepad)
 ===========
+
 
 This library provides an interface to the [Navigator.getGamepads() Web API](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/getGamepads),
 and the tools to remap gamepads and game controllers.
