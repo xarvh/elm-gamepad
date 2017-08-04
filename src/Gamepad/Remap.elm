@@ -187,7 +187,7 @@ configuredButtonsToOutcome targetUnknownGamepad configuredButtons =
 destination.
 
 For example, you can trigger it when the user presses the Space key, or create a
-"Skip" <button> and trigger it `onClick`.
+"Skip" `<button>` and trigger it `onClick`.
 
 -}
 skipCurrentButton : Model presentation -> Outcome presentation
