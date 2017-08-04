@@ -37,6 +37,7 @@ function addGamepadPort(elmApp) {
       connected: g.connected,
       id: g.id,
       index: g.index,
+      mapping: g.mapping,
       timestamp: g.timestamp,
     };
   }

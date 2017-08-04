@@ -54,29 +54,24 @@ First things first: you need a JavaScript port to get the return value of
 `navigator.getGamepads()` inside Elm.
 You can copy the port files from [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
 
-Within the library, the thing returned by `navigator.getGamepads()` is called
-a [Blob](#Blob).
+Within the library, the raw gamepad information produced by the port is called [Blob](#Blob).
 
-You also need a [Database](#Database) of known button maps.
-
-Unfortunately there is no database of all possible gamepads, and I don't think
-it's possible to create one, at least not for browsers as they are currently.
-
-This means that you will have to start with [emptyDatabase](#emptyDatabase) and
-include a remapping tool in your app to allow the user to create the mapping.
-
-You can use the bare-bones remapping tool provided in
-[Gamepad.Remap](#Gamepad-Remap) or build your own.
-
-[getUnknownGamepads](#getUnknownGamepads) will give you a list of connected
-gamepads that need to be mapped.
-
-Once your database contains the maps, you can get a list of all recognised and
-connected gamepads with [getGamepads](#getGamepads).
+You can get a list of all recognised and connected gamepads with [getGamepads](#getGamepads).
 
 To access the information of each [Gamepad](#Gamepad), you can use the button
 getters: [aIsPressed](#aIsPressed), [leftX](#leftX),
 [rightTriggerValue](#rightTriggerValue) and so on...
+
+Many gamepads have [a standard mapping](https://www.w3.org/TR/gamepad/#remapping)
+and will be recognised automatically, but for all other gamepads, or for custom
+mappings, you will need a [Database](#Database) of known button maps:
+you can default to [emptyDatabase](#emptyDatabase), then include a remapping
+tool in your app to allow the user to create the mapping.
+
+You can use the bare-bones remapping tool provided in
+[Gamepad.Remap](#Gamepad-Remap) or [build your own](#mapping);
+[getUnknownGamepads](#getUnknownGamepads) will give you a list of connected
+gamepads that need to be mapped.
 
 
 # Blob
@@ -140,10 +135,12 @@ button name, the [Destination](#Destination).
 
 The steps to create a button map are roughly:
 
-1.  For every [Destination](#Destination) your application should:
-      - Ask the user to press or push it.
+1.  For every [Destination](#Destination) your application requires, you should:
+      - Ask the user to press/push it.
       - Use [estimateOrigin](#estimateOrigin) to know which [Origin](#Origin) is being activated.
-2.  Add the list generated above to your [Database](#Database) with [buttonMapToUpdateDatabase](#buttonMapToUpdateDatabase)
+      - Store this [Origin](#Origin) in a tuple together with its [Destination](#Destination).
+2.  Pass the list of `(Destination, Origin)` tuples to [buttonMapToUpdateDatabase](#buttonMapToUpdateDatabase)
+    to add the new mapping to your [Database](#Database).
 
 @docs Origin, Destination, estimateOrigin, buttonMapToUpdateDatabase
 
@@ -197,8 +194,8 @@ type OriginType
     | Button
 
 
-type ButtonMap
-    = ButtonMap String
+type alias ButtonMap =
+    String
 
 
 {-| A Blob describes the raw return value of `navigator.getGamepads()`.
@@ -221,6 +218,7 @@ type alias RawGamepad =
     , connected : Bool
     , id : String
     , index : Int
+    , mapping : String
     , timestamp : Float
     }
 
@@ -335,7 +333,7 @@ destinationToString destination =
 
 
 
--- Adding a ButtonMap to a Database
+-- Adding a button map to a Database
 
 
 intToString : Int -> String
@@ -416,17 +414,17 @@ buttonMap map =
             |> List.map tupleToString
             |> List.sortBy identity
             |> String.join ","
-            |> ButtonMap
 
 
-{-| The function inserts a button map for a given gamepad Id in a [Database],
+{-| The function inserts a button map for a given gamepad Id in a [Database](#Database),
 replacing any previous mapping for that gamepad Id.
 
 The first argument is the gamepad the map is for.
 
-The second argument is the map itself: a List of [Destination]s vs [Origin]s.
+The second argument is the map itself: a List of [Destination](#Destination)s vs
+[Origin](#Origin)s.
 
-The third argument is the [Database] to update.
+The third argument is the [Database](#Database) to update.
 
 -}
 buttonMapToUpdateDatabase : UnknownGamepad -> List ( Destination, Origin ) -> Database -> Database
@@ -461,7 +459,7 @@ buttonMapDivider =
 databaseToString : Database -> String
 databaseToString (Database database) =
     let
-        tupleToString ( gamepadId, ButtonMap map ) =
+        tupleToString ( gamepadId, map ) =
             gamepadId ++ buttonMapDivider ++ map ++ "\n"
     in
         database
@@ -485,7 +483,7 @@ databaseFromString databaseAsString =
         stringToTuple dbEntry =
             case String.split buttonMapDivider dbEntry of
                 [ id, map ] ->
-                    Just ( id, ButtonMap map )
+                    Just ( id, map )
 
                 _ ->
                     Nothing
@@ -501,6 +499,42 @@ databaseFromString databaseAsString =
 
 
 
+-- Standard button maps
+
+
+standardButtonMaps : Dict String ButtonMap
+standardButtonMaps =
+    [ ( "standard"
+      , buttonMap
+            -- https://www.w3.org/TR/gamepad/#remapping
+            [ ( A, Origin False Button 0 )
+            , ( B, Origin False Button 1 )
+            , ( X, Origin False Button 2 )
+            , ( Y, Origin False Button 3 )
+            , ( Start, Origin False Button 9 )
+            , ( Back, Origin False Button 8 )
+            , ( Home, Origin False Button 16 )
+            , ( LeftRight, Origin False Axis 0 )
+            , ( LeftDown, Origin False Axis 1 )
+            , ( LeftStick, Origin False Button 10 )
+            , ( LeftBumper, Origin False Button 4 )
+            , ( LeftTrigger, Origin False Button 6 )
+            , ( RightRight, Origin False Axis 2 )
+            , ( RightDown, Origin False Axis 3 )
+            , ( RightStick, Origin False Button 11 )
+            , ( RightBumper, Origin False Button 5 )
+            , ( RightTrigger, Origin False Button 7 )
+            , ( DpadUp, Origin False Button 12 )
+            , ( DpadDown, Origin False Button 13 )
+            , ( DpadLeft, Origin False Button 14 )
+            , ( DpadRight, Origin False Button 15 )
+            ]
+      )
+    ]
+        |> Dict.fromList
+
+
+
 -- Get gamepads
 
 
@@ -512,16 +546,26 @@ isConnected rawGamepad =
     rawGamepad.connected && rawGamepad.timestamp > 0
 
 
+getGamepadButtonMap : Database -> RawGamepad -> Maybe ButtonMap
+getGamepadButtonMap (Database database) rawGamepad =
+    case Dict.get rawGamepad.id database of
+        Just buttonMap ->
+            Just buttonMap
+
+        Nothing ->
+            Dict.get rawGamepad.mapping standardButtonMaps
+
+
 rawGamepadToGamepad : Database -> RawGamepad -> Maybe Gamepad
-rawGamepadToGamepad (Database database) rawGamepad =
+rawGamepadToGamepad database rawGamepad =
     case isConnected rawGamepad of
         False ->
             Nothing
 
         True ->
-            database
-                |> Dict.get rawGamepad.id
-                |> Maybe.map (\(ButtonMap buttonMapAsString) -> Gamepad buttonMapAsString rawGamepad)
+            rawGamepad
+                |> getGamepadButtonMap database
+                |> Maybe.map (\buttonMap -> Gamepad buttonMap rawGamepad)
 
 
 {-| Get a List of all recognised Gamepads (ie, those that can be found in the Database).
@@ -536,13 +580,13 @@ getGamepads database blob =
 
 
 rawGamepadToUnknownGamepad : Database -> RawGamepad -> Maybe UnknownGamepad
-rawGamepadToUnknownGamepad (Database database) rawGamepad =
+rawGamepadToUnknownGamepad database rawGamepad =
     case isConnected rawGamepad of
         False ->
             Nothing
 
         True ->
-            if Dict.member rawGamepad.id database then
+            if getGamepadButtonMap database rawGamepad /= Nothing then
                 Nothing
             else
                 Just (UnknownGamepad rawGamepad)
@@ -940,7 +984,7 @@ estimateThreshold ( origin, confidence ) =
         Just origin
 
 
-{-| The function makes a guess of the Origin currently activated by the player.
+{-| The function guesses the Origin currently activated by the player.
 -}
 estimateOrigin : UnknownGamepad -> Maybe Origin
 estimateOrigin (UnknownGamepad rawGamepad) =

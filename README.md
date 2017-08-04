@@ -106,19 +106,22 @@ to add also the local storage port, the procedure is exactly the same.
 
 What's the problem with Browsers+Gamepads?
 ==========================================
+The [w3c spec](https://www.w3.org/TR/gamepad/) defines a
+["Standard Gamepad"](https://www.w3.org/TR/gamepad/#remapping) but the support
+for this standard mapping is sparse and ultimately unreliable.
 
-The [w3c spec](https://www.w3.org/TR/gamepad/) is still very fresh: different
-browsers, browser versions and operative systems will map the same gamepad
-differently; for example, Firefox considers the shoulder buttons of my Xbox360
-gamepads as axes, while Chrome detects them as Buttons, even if both browsers
-produce the same Vendor/Product code.
+More in general, the same hardware will be recognised differently depending on
+the operative system, installed driver, browser and even browser version.
+
+For example under my Ubuntu, Firefox considers the trigger buttons of my Xbox360
+gamepads as `axes`, while Chrome detects them as `buttons`.
 
 Because of this, I don't think there is a way to create a reliable database of
 all game controllers.
 
-The only reliable way is to let the user remap their controller and save the
-resulting map in the local storage.
+The only reliable option is to let the user remap their controller.
+Remapping capabilities are also important to make a web application accessible.
 
-This library is my attempt at making this as pain-free as possible.
+This library is my attempt at making using and mapping gamepads as pain-free as possible.
 
 Any suggestion for improvement is very welcome!
