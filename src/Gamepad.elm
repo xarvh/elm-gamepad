@@ -66,8 +66,8 @@ getters: [aIsPressed](#aIsPressed), [leftX](#leftX),
 
 Many gamepads have [a standard mapping](https://www.w3.org/TR/gamepad/#remapping)
 and will be recognised automatically, but for all other gamepads, or for custom
-mappings, you will need a [Database](#Database) of known button maps:
-you can default to [emptyDatabase](#emptyDatabase), then include a remapping
+mappings, you will need a button maps [Database](#Database):
+you can default to [emptyDatabase](#emptyDatabase), and include a remapping
 tool in your app to allow the user to create the mapping.
 
 You can use the bare-bones remapping tool provided in
@@ -78,7 +78,7 @@ gamepads that need to be mapped.
 
 # Blob
 
-@docs Blob, RawGamepad
+@docs Blob
 
 
 # Database
@@ -146,6 +146,11 @@ The steps to create a button map are roughly:
 
 @docs getAllGamepadsAsUnknown, Origin, Destination, estimateOrigin, buttonMapToUpdateDatabase
 
+
+# Test
+
+@docs RawGamepad
+
 -}
 
 import Array exposing (Array)
@@ -210,7 +215,8 @@ type alias Blob =
     List (Maybe RawGamepad)
 
 
-{-| -}
+{-| This type is exposed only for testing purposes. Don't use it.
+-}
 type alias RawGamepad =
     { axes : Array Float
     , buttons : Array ( Bool, Float )
@@ -222,7 +228,7 @@ type alias RawGamepad =
     }
 
 
-{-| A Destination is just a way to references a gamepad input that is understandable for the user.
+{-| A Destination is just a way to reference a gamepad input that is understandable for the user.
 -}
 type Destination
     = A
@@ -986,7 +992,7 @@ estimateThreshold ( origin, confidence ) =
         Just origin
 
 
-{-| The function guesses the Origin currently activated by the player.
+{-| The function guesses the Origin currently activated by the user.
 -}
 estimateOrigin : UnknownGamepad -> Maybe Origin
 estimateOrigin (UnknownGamepad rawGamepad) =

@@ -25,7 +25,7 @@ You give the tool the list of `Gamepad.Destination`s your application needs
 and the index of the gamepad to remap: the tool will then show the destinations
 one by one, and associate each with whatever button/stick the user moves.
 
-You can abort the remapping simply by not showing it and ignoring its `Msg`s.
+You can abort the remapping simply by stopping to show it and ignoring its `Msg`s.
 
 Remember that, once added to a Database, the remap will affect all gamepads of the same
 type (ie, with the same id).
