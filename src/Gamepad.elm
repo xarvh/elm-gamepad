@@ -1,6 +1,7 @@
 module Gamepad
     exposing
         ( Blob
+        , RawGamepad
           -- database
         , Database
         , emptyDatabase
@@ -45,6 +46,7 @@ module Gamepad
         , Destination(..)
         , estimateOrigin
         , buttonMapToUpdateDatabase
+        , getAllGamepadsAsUnknown
         )
 
 {-| A library to make sense of
@@ -76,7 +78,7 @@ gamepads that need to be mapped.
 
 # Blob
 
-@docs Blob
+@docs Blob, RawGamepad
 
 
 # Database
@@ -142,7 +144,7 @@ The steps to create a button map are roughly:
 2.  Pass the list of `(Destination, Origin)` tuples to [buttonMapToUpdateDatabase](#buttonMapToUpdateDatabase)
     to add the new mapping to your [Database](#Database).
 
-@docs Origin, Destination, estimateOrigin, buttonMapToUpdateDatabase
+@docs getAllGamepadsAsUnknown, Origin, Destination, estimateOrigin, buttonMapToUpdateDatabase
 
 -}
 
@@ -208,13 +210,10 @@ type alias Blob =
     List (Maybe RawGamepad)
 
 
-type alias RawButton =
-    ( Bool, Float )
-
-
+{-| -}
 type alias RawGamepad =
     { axes : Array Float
-    , buttons : Array RawButton
+    , buttons : Array ( Bool, Float )
     , connected : Bool
     , id : String
     , index : Int
@@ -546,6 +545,13 @@ isConnected rawGamepad =
     rawGamepad.connected && rawGamepad.timestamp > 0
 
 
+getRawGamepads : Blob -> List RawGamepad
+getRawGamepads blob =
+    blob
+        |> List.filterMap identity
+        |> List.filter isConnected
+
+
 getGamepadButtonMap : Database -> RawGamepad -> Maybe ButtonMap
 getGamepadButtonMap (Database database) rawGamepad =
     case Dict.get rawGamepad.id database of
@@ -556,52 +562,48 @@ getGamepadButtonMap (Database database) rawGamepad =
             Dict.get rawGamepad.mapping standardButtonMaps
 
 
-rawGamepadToGamepad : Database -> RawGamepad -> Maybe Gamepad
-rawGamepadToGamepad database rawGamepad =
-    case isConnected rawGamepad of
-        False ->
-            Nothing
+getKnownAndUnknownGamepads : Database -> Blob -> ( List Gamepad, List UnknownGamepad )
+getKnownAndUnknownGamepads database blob =
+    let
+        foldRawGamepad rawGamepad ( known, unknown ) =
+            case getGamepadButtonMap database rawGamepad of
+                Nothing ->
+                    ( known
+                    , UnknownGamepad rawGamepad :: unknown
+                    )
 
-        True ->
-            rawGamepad
-                |> getGamepadButtonMap database
-                |> Maybe.map (\buttonMap -> Gamepad buttonMap rawGamepad)
+                Just buttonMap ->
+                    -- TODO: it might be faster to parse the button maps here, rather than running a regex at every getter
+                    ( Gamepad buttonMap rawGamepad :: known
+                    , unknown
+                    )
+    in
+        blob
+            |> getRawGamepads
+            |> List.foldr foldRawGamepad ( [], [] )
 
 
 {-| Get a List of all recognised Gamepads (ie, those that can be found in the Database).
 -}
 getGamepads : Database -> Blob -> List Gamepad
 getGamepads database blob =
-    -- TODO: it might be faster to parse the button maps here, rather than running a regex at every getter
-    blob
-        |> List.filterMap identity
-        |> List.map (rawGamepadToGamepad database)
-        |> List.filterMap identity
+    getKnownAndUnknownGamepads database blob |> Tuple.first
 
 
-rawGamepadToUnknownGamepad : Database -> RawGamepad -> Maybe UnknownGamepad
-rawGamepadToUnknownGamepad database rawGamepad =
-    case isConnected rawGamepad of
-        False ->
-            Nothing
-
-        True ->
-            if getGamepadButtonMap database rawGamepad /= Nothing then
-                Nothing
-            else
-                Just (UnknownGamepad rawGamepad)
-
-
-{-| Get a List of all gamepads that cannot be found in the Database.
+{-| Get a List of all gamepads that do not have a mapping.
 If there are any, you need to run the remapping tool to create a Database
 entry for them, otherwise the user won't be able to use them.
 -}
 getUnknownGamepads : Database -> Blob -> List UnknownGamepad
 getUnknownGamepads database blob =
-    blob
-        |> List.filterMap identity
-        |> List.map (rawGamepadToUnknownGamepad database)
-        |> List.filterMap identity
+    getKnownAndUnknownGamepads database blob |> Tuple.second
+
+
+{-| Get a List of all connected gamepads, whether they are recognised or not.
+-}
+getAllGamepadsAsUnknown : Blob -> List UnknownGamepad
+getAllGamepadsAsUnknown blob =
+    getRawGamepads blob |> List.map UnknownGamepad
 
 
 
@@ -966,7 +968,7 @@ boolToNumber bool =
         0
 
 
-buttonToEstimate : Int -> RawButton -> ( Origin, Float )
+buttonToEstimate : Int -> ( Bool, Float ) -> ( Origin, Float )
 buttonToEstimate originIndex ( isPressed, value ) =
     ( Origin False Button originIndex, boolToNumber isPressed )
 
