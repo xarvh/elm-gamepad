@@ -21,9 +21,15 @@ function addGamepadPort(elmApp) {
   function onAnimationFrame(timestamp) {
     raf();
 
+    var serialisedGamepads = [];
+    var gamepads = getGamepads();
+    for (var i = 0; i < gamepads.length; i++) {
+      serialisedGamepads.push(copyGamepad(gamepads[i]));
+    }
+
     elmApp.ports.gamepad.send([
       timestamp - previousTimestamp,
-      [].map.call(getGamepads(), copyGamepad),
+      serialisedGamepads,
     ]);
 
     previousTimestamp = timestamp;

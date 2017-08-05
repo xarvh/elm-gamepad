@@ -70,7 +70,7 @@ mappings, you will need a button maps [Database](#Database):
 you can default to [emptyDatabase](#emptyDatabase), and include a remapping
 tool in your app to allow the user to create the mapping.
 
-You can use the bare-bones remapping tool provided in
+You can use the bare bones remapping tool provided in
 [Gamepad.Remap](#Gamepad-Remap) or [build your own](#mapping);
 [getUnknownGamepads](#getUnknownGamepads) will give you a list of connected
 gamepads that need to be mapped.
@@ -421,7 +421,7 @@ buttonMap map =
             |> String.join ","
 
 
-{-| The function inserts a button map for a given gamepad Id in a [Database](#Database),
+{-| This function inserts a button map for a given gamepad Id in a [Database](#Database),
 replacing any previous mapping for that gamepad Id.
 
 The first argument is the gamepad the map is for.
@@ -960,7 +960,7 @@ rightTriggerValue =
 
 
 {-| Buttons are always provided as a (isPressed, value) tuple.
-The function ignores one and uses only nd always the other.
+This function ignores one and uses only and always the other.
 
 Is this a good assumption?
 Are there cases where both should be considered?
@@ -992,7 +992,7 @@ estimateThreshold ( origin, confidence ) =
         Just origin
 
 
-{-| The function guesses the Origin currently activated by the user.
+{-| This function guesses the Origin currently activated by the user.
 -}
 estimateOrigin : UnknownGamepad -> Maybe Origin
 estimateOrigin (UnknownGamepad rawGamepad) =

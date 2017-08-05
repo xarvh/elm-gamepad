@@ -70,7 +70,7 @@ subscriptions model =
 Important!
 ==========
 
-Gamepad polling should by synchronised with the browser's animation frame.
+Gamepad polling should be synchronised with the browser's animation frame.
 
 If you are using [elm-lang/animation-frame](http://package.elm-lang.org/packages/elm-lang/animation-frame/latest)
 you should remove it, and instead use the `Time` provided by the gamepad port,
@@ -122,7 +122,3 @@ all game controllers.
 
 The only reliable option is to let the user remap their controller.
 Remapping capabilities are also important to make a web application accessible.
-
-This library is my attempt at making using and mapping gamepads as pain-free as possible.
-
-Any suggestion for improvement is very welcome!
