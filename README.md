@@ -1,17 +1,28 @@
 Elm Gamepad [![Travis build Status](https://travis-ci.org/xarvh/elm-gamepad.svg?branch=master)](http://travis-ci.org/xarvh/elm-gamepad)
 ===========
 
-
-This library provides an interface to the [Navigator.getGamepads() Web API](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/getGamepads),
-and the tools to remap gamepads and game controllers.
-
-Since pure Elm cannot access `navigator.getGamepads()`, in order to use the
-library you will need to manually add a port; you can use the one provided in
-[port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
+This library allows you to use game controller aka gamepads in your Elm web app.
 
 * [See a running version of examples/Main.elm](https://xarvh.github.io/elm-gamepad/examples/)
 
 * [See an actual game that uses the library](https://xarvh.github.io/elm-haifisch/)
+
+Since pure Elm cannot access the [Navigator.getGamepads() Web API](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/getGamepads)
+that this library uses, **you will need to manually add a port**.
+You can use the one provided in [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
+
+Gamepad support is very inconsistent and varies wildly with the browser, the
+browser version, the operative system and the installed gamepad drivers.
+
+If you are lucky, the browser will recognize your gamepad(s) as a
+["Standard Gamepad"](https://www.w3.org/TR/gamepad/#remapping) which means that
+you can use it with no remapping or configuration.
+
+Often times however, the browser does not recognise a gamepad: in this case you
+can still use it, but you will need to remap it.
+If you want everyone to be able to use your app, it should include a way to
+remap the gamepads: the `Gamepad.Remap` module will help you with that.
+
 
 
 ```elm
@@ -102,23 +113,3 @@ You can get ready-to-use port code from [port/](https://github.com/xarvh/elm-gam
 
 If you do not have another way to persist the gamepad database, you will want
 to add also the local storage port, the procedure is exactly the same.
-
-
-
-What's the problem with Browsers+Gamepads?
-==========================================
-The [w3c spec](https://www.w3.org/TR/gamepad/) defines a
-["Standard Gamepad"](https://www.w3.org/TR/gamepad/#remapping) but the support
-for this standard mapping is sparse and ultimately unreliable.
-
-More in general, the same hardware will be recognised differently depending on
-the operative system, installed driver, browser and even browser version.
-
-For example under my Ubuntu, Firefox considers the trigger buttons of my Xbox360
-gamepads as `axes`, while Chrome detects them as `buttons`.
-
-Because of this, I don't think there is a way to create a reliable database of
-all game controllers.
-
-The only reliable option is to let the user remap their controller.
-Remapping capabilities are also important to make a web application accessible.
