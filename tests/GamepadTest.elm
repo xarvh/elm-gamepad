@@ -4,30 +4,27 @@ import Array exposing (Array)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Gamepad exposing (Blob, Gamepad, RawGamepad)
-import Gamepad.Remap exposing (Outcome(Error, StillOpen, UpdateDatabase))
+import Gamepad.Remap exposing (Outcome(..))
 import Test exposing (Test, describe)
 
 
 -- Generic Helpers
 
 
-(&>) =
-    flip Fuzz.andThen
+listOfLength : Int -> Fuzzer a -> Fuzzer (List a)
+listOfLength listLen fuzzer =
+    List.foldl
+        (Fuzz.map2 (\elem -> \list -> elem :: list))
+        (Fuzz.constant [])
+        (List.repeat listLen fuzzer)
 
 
-repeat : Int -> Fuzzer a -> Fuzzer (List a)
-repeat n fuzzer =
-    let
-        recursive : Int -> List a -> Fuzzer (List a)
-        recursive n list =
-            if n == 0 then
-                Fuzz.constant list
-            else
-                fuzzer &> (\a -> recursive (n - 1) (a :: list))
-    in
-    recursive n []
+nonEmptyList : Fuzzer a -> Fuzzer (List a)
+nonEmptyList fuzzer =
+    Fuzz.map2 (::) fuzzer (Fuzz.list fuzzer)
 
 
+removeNewlines : String -> String
 removeNewlines =
     String.lines >> String.join ""
 
@@ -61,9 +58,14 @@ mapBlob f blob =
 -- Fuzzers
 
 
-axesFuzzer : Int -> Fuzzer (Array Float)
-axesFuzzer n =
-    repeat n (Fuzz.floatRange -1 1) |> Fuzz.map Array.fromList
+axisFuzzer : Fuzzer Float
+axisFuzzer =
+    Fuzz.floatRange -1 1
+
+
+axesFuzzer : Fuzzer (Array Float)
+axesFuzzer =
+    nonEmptyList axisFuzzer |> Fuzz.map Array.fromList
 
 
 buttonFuzzer : Fuzzer ( Bool, Float )
@@ -72,9 +74,9 @@ buttonFuzzer =
         |> Fuzz.map (\n -> ( n > 0.01, n ))
 
 
-buttonsFuzzer : Int -> Fuzzer (Array ( Bool, Float ))
-buttonsFuzzer n =
-    repeat n buttonFuzzer |> Fuzz.map Array.fromList
+buttonsFuzzer : Fuzzer (Array ( Bool, Float ))
+buttonsFuzzer =
+    nonEmptyList buttonFuzzer |> Fuzz.map Array.fromList
 
 
 standardGamepadFuzzer : Fuzzer RawGamepad
@@ -92,8 +94,8 @@ standardGamepadFuzzer =
     in
     Fuzz.map5 makeRawGamepad
         Fuzz.int
-        (axesFuzzer 4)
-        (buttonsFuzzer 16)
+        (listOfLength 4 axisFuzzer |> Fuzz.map Array.fromList)
+        (listOfLength 16 buttonFuzzer |> Fuzz.map Array.fromList)
         Fuzz.bool
         Fuzz.string
 
@@ -111,15 +113,12 @@ nonStandardGamepadFuzzer =
             , timestamp = 987
             }
     in
-    Fuzz.map2 (,) (Fuzz.intRange 0 8) (Fuzz.intRange 1 32)
-        &> (\( axesCount, buttonsCount ) ->
-                Fuzz.map5 makeRawGamepad
-                    Fuzz.int
-                    (axesFuzzer axesCount)
-                    (buttonsFuzzer buttonsCount)
-                    Fuzz.bool
-                    Fuzz.string
-           )
+    Fuzz.map5 makeRawGamepad
+        Fuzz.int
+        axesFuzzer
+        buttonsFuzzer
+        Fuzz.bool
+        Fuzz.string
 
 
 windows10BuggedGamepadFuzzer : Fuzzer RawGamepad
@@ -323,13 +322,13 @@ canRemapStandardGamepads =
                 -- Test remapping a connected gamepad
                 Just firstGamepadIndex ->
                     let
-                        model =
+                        initialModel =
                             Gamepad.Remap.init
                                 firstGamepadIndex
                                 [ ( Gamepad.Home, "Home Button" ) ]
 
                         outcome =
-                            chainInputs (StillOpen model)
+                            chainInputs (StillOpen initialModel)
                                 [ blob
                                 , mapBlob pressNone blob
                                 , mapBlob pressAll blob
@@ -337,7 +336,7 @@ canRemapStandardGamepads =
                                 ]
                     in
                     case outcome of
-                        StillOpen model ->
+                        StillOpen updatedModel ->
                             Expect.fail "Did not complete remapping"
 
                         Error message ->

@@ -11,7 +11,7 @@ Since pure Elm cannot access the [Navigator.getGamepads() Web API](https://devel
 that this library uses, **you will need to manually add a port**.
 You can use the one provided in [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
 
-Gamepad support is very inconsistent and varies wildly with the browser, the
+Browser gamepad support is very inconsistent and varies wildly with the browser, the
 browser version, the operative system and the installed gamepad drivers.
 
 If you are lucky, the browser will recognize your gamepad(s) as a
@@ -29,7 +29,6 @@ super important.
 ```elm
 import Gamepad exposing (Gamepad)
 import GamepadPort
-import Time exposing (Time)
 
 
 type alias PlayerControl =
@@ -46,7 +45,7 @@ type alias Model =
 
 
 type Msg
-    = OnGamepad ( Time, Gamepad.Blob )
+    = OnGamepad ( Float, Gamepad.Blob )
 
 
 gamepadToPlayerControl : Gamepad -> PlayerControl

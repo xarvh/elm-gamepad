@@ -1,14 +1,23 @@
 module Main exposing (..)
 
+import Browser
 import Gamepad exposing (Destination(..), Gamepad, UnknownGamepad)
 import Gamepad.Remap exposing (Outcome(..))
 import GamepadPort
 import Html exposing (..)
 import Html.Attributes
 import Html.Events
-import Keyboard
+import Json.Decode as Decode
 import LocalStoragePort
-import Time exposing (Time)
+
+
+-- Keyboard
+
+
+keyDecoder : Decode.Decoder String
+keyDecoder =
+    Decode.field "key" Decode.string
+
 
 
 -- types
@@ -36,11 +45,11 @@ type alias Model =
 
 
 type Msg
-    = OnGamepad ( Time, Gamepad.Blob )
+    = OnGamepad ( Float, Gamepad.Blob )
     | OnRemapMsg Gamepad.Remap.Msg
     | OnStartRemapping Int
     | OnContinue
-    | OnKey Keyboard.KeyCode
+    | OnKey String
 
 
 
@@ -108,8 +117,8 @@ type alias Flags =
     }
 
 
-init : Flags -> ( Model, Cmd Msg )
-init flags =
+init : Browser.Env Flags -> ( Model, Cmd Msg )
+init { flags } =
     let
         gamepadDatabase =
             flags.gamepadDatabaseAsString
@@ -186,11 +195,11 @@ update msg model =
         ( OnKey keyCode, Remapping remapModel ) ->
             case keyCode of
                 -- Esc: abort remapping
-                27 ->
+                "Escape" ->
                     noCmd { model | state = Display Nothing }
 
                 -- Space: skip current entry
-                32 ->
+                " " ->
                     updateRemap (Gamepad.Remap.skipCurrentButton remapModel) model
 
                 _ ->
@@ -232,7 +241,7 @@ viewGamepad gamepad =
         viewControl getter name =
             li
                 []
-                [ text <| name ++ ": " ++ toString (getter gamepad) ]
+                [ text <| name ++ ": " ++ Debug.toString (getter gamepad) ]
     in
     ( index
     , div
@@ -300,10 +309,10 @@ viewGamepadsBlob model blob =
         text "No gamepads detected."
 
 
-view : Model -> Html Msg
+view : Model -> Browser.Page Msg
 view model =
-    div
-        []
+    { title = "Elm Gamepad example"
+    , body =
         [ case model.state of
             Message message ->
                 div
@@ -353,6 +362,7 @@ view model =
                         ]
                     ]
         ]
+    }
 
 
 
@@ -363,7 +373,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ GamepadPort.gamepad OnGamepad
-        , Keyboard.ups OnKey
+        , Browser.onDocument "keyup" (Decode.map OnKey keyDecoder)
         , case model.state of
             Remapping remapModel ->
                 Gamepad.Remap.subscriptions GamepadPort.gamepad |> Sub.map OnRemapMsg
@@ -379,9 +389,10 @@ subscriptions model =
 
 main : Program Flags Model Msg
 main =
-    Html.programWithFlags
+    Browser.fullscreen
         { init = init
         , update = update
         , subscriptions = subscriptions
+        , onNavigation = Nothing
         , view = view
         }

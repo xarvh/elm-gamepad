@@ -157,7 +157,6 @@ import Array exposing (Array)
 import Dict exposing (Dict)
 import Regex
 import Set exposing (Set)
-import Time exposing (Time)
 
 
 {-| A recognised gamepad, whose buttons mapping was found in the Database.
@@ -337,15 +336,6 @@ destinationToString destination =
             "dpadright"
 
 
-
--- Adding a button map to a Database
-
-
-intToString : Int -> String
-intToString =
-    toString
-
-
 {-| If leftUp and leftDown point to different origins, then the normal
 
     leftY =
@@ -387,8 +377,8 @@ fixAllAxesCoupling map =
         |> Dict.toList
 
 
-buttonMap : List ( Destination, Origin ) -> ButtonMap
-buttonMap map =
+listToButtonMap : List ( Destination, Origin ) -> ButtonMap
+listToButtonMap map =
     let
         hasMinus isReverse =
             if isReverse then
@@ -405,7 +395,7 @@ buttonMap map =
                     "b"
 
         originToCode (Origin isReverse originType index) =
-            hasMinus isReverse ++ typeToString originType ++ intToString index
+            hasMinus isReverse ++ typeToString originType ++ String.fromInt index
 
         tupleDestinationToString ( destination, origin ) =
             ( destinationToString destination, origin )
@@ -434,7 +424,7 @@ The third argument is the [Database](#Database) to update.
 -}
 buttonMapToUpdateDatabase : UnknownGamepad -> List ( Destination, Origin ) -> Database -> Database
 buttonMapToUpdateDatabase unknownGamepad map (Database database) =
-    Dict.insert (unknownGetId unknownGamepad) (buttonMap map) database |> Database
+    Dict.insert (unknownGetId unknownGamepad) (listToButtonMap map) database |> Database
 
 
 
@@ -510,7 +500,7 @@ databaseFromString databaseAsString =
 standardButtonMaps : Dict String ButtonMap
 standardButtonMaps =
     [ ( "standard"
-      , buttonMap
+      , listToButtonMap
             -- https://www.w3.org/TR/gamepad/#remapping
             [ ( A, Origin False Button 0 )
             , ( B, Origin False Button 1 )
@@ -643,9 +633,9 @@ regexMatchToInputTuple : Regex.Match -> Maybe ( OriginType, Int, Bool )
 regexMatchToInputTuple match =
     case match.submatches of
         _ :: maybeReverse :: (Just inputTypeAsString) :: (Just indexAsString) :: _ ->
-            Maybe.map3 (,,)
+            Maybe.map3 (\a b c -> ( a, b, c ))
                 (inputTypeAsString |> stringToInputType)
-                (indexAsString |> String.toInt |> Result.toMaybe)
+                (indexAsString |> String.toInt)
                 (maybeReverse |> maybeToReverse |> Just)
 
         _ ->
@@ -659,7 +649,7 @@ mappingToRawIndex destination mapping =
             "(^|,)" ++ destinationToString destination ++ ":(-)?([a-z]?)([0-9]+)(,|$)"
     in
     mapping
-        |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
+        |> Regex.findAtMost 1 (Regex.fromString regex |> Maybe.withDefault Regex.never)
         |> List.head
         |> Maybe.andThen regexMatchToInputTuple
 
@@ -685,8 +675,8 @@ reverseAxis isReverse n =
         n
 
 
-isPressed : Destination -> Gamepad -> Bool
-isPressed destination (Gamepad mapping rawGamepad) =
+buttonIsPressed : Destination -> Gamepad -> Bool
+buttonIsPressed destination (Gamepad mapping rawGamepad) =
     case mappingToRawIndex destination mapping of
         Nothing ->
             False
@@ -769,25 +759,25 @@ getIndex (Gamepad string raw) =
 {-| -}
 aIsPressed : Gamepad -> Bool
 aIsPressed =
-    isPressed A
+    buttonIsPressed A
 
 
 {-| -}
 bIsPressed : Gamepad -> Bool
 bIsPressed =
-    isPressed B
+    buttonIsPressed B
 
 
 {-| -}
 xIsPressed : Gamepad -> Bool
 xIsPressed =
-    isPressed X
+    buttonIsPressed X
 
 
 {-| -}
 yIsPressed : Gamepad -> Bool
 yIsPressed =
-    isPressed Y
+    buttonIsPressed Y
 
 
 
@@ -797,19 +787,19 @@ yIsPressed =
 {-| -}
 startIsPressed : Gamepad -> Bool
 startIsPressed =
-    isPressed Start
+    buttonIsPressed Start
 
 
 {-| -}
 backIsPressed : Gamepad -> Bool
 backIsPressed =
-    isPressed Back
+    buttonIsPressed Back
 
 
 {-| -}
 homeIsPressed : Gamepad -> Bool
 homeIsPressed =
-    isPressed Home
+    buttonIsPressed Home
 
 
 
@@ -819,25 +809,25 @@ homeIsPressed =
 {-| -}
 dpadUpIsPressed : Gamepad -> Bool
 dpadUpIsPressed =
-    isPressed DpadUp
+    buttonIsPressed DpadUp
 
 
 {-| -}
 dpadDownIsPressed : Gamepad -> Bool
 dpadDownIsPressed =
-    isPressed DpadDown
+    buttonIsPressed DpadDown
 
 
 {-| -}
 dpadLeftIsPressed : Gamepad -> Bool
 dpadLeftIsPressed =
-    isPressed DpadLeft
+    buttonIsPressed DpadLeft
 
 
 {-| -}
 dpadRightIsPressed : Gamepad -> Bool
 dpadRightIsPressed =
-    isPressed DpadRight
+    buttonIsPressed DpadRight
 
 
 {-| -1 means left, 0 means center, 1 means right
@@ -885,19 +875,19 @@ leftY =
 {-| -}
 leftStickIsPressed : Gamepad -> Bool
 leftStickIsPressed =
-    isPressed LeftStick
+    buttonIsPressed LeftStick
 
 
 {-| -}
 leftBumperIsPressed : Gamepad -> Bool
 leftBumperIsPressed =
-    isPressed LeftBumper
+    buttonIsPressed LeftBumper
 
 
 {-| -}
 leftTriggerIsPressed : Gamepad -> Bool
 leftTriggerIsPressed =
-    isPressed LeftTrigger
+    buttonIsPressed LeftTrigger
 
 
 {-| 0.0 means not pressed, 1.0 means fully pressed
@@ -928,19 +918,19 @@ rightY =
 {-| -}
 rightStickIsPressed : Gamepad -> Bool
 rightStickIsPressed =
-    isPressed RightStick
+    buttonIsPressed RightStick
 
 
 {-| -}
 rightBumperIsPressed : Gamepad -> Bool
 rightBumperIsPressed =
-    isPressed RightBumper
+    buttonIsPressed RightBumper
 
 
 {-| -}
 rightTriggerIsPressed : Gamepad -> Bool
 rightTriggerIsPressed =
-    isPressed RightTrigger
+    buttonIsPressed RightTrigger
 
 
 {-| 0.0 means not pressed, 1.0 means fully pressed
