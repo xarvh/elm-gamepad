@@ -44,7 +44,6 @@ type (ie, with the same id).
 
 import Dict exposing (Dict)
 import Gamepad exposing (Destination, UnknownGamepad)
-import Time exposing (Time)
 
 
 {-| This describes the outcome of a change in the Model.
@@ -114,7 +113,7 @@ type Model presentation
 
 {-| -}
 type Msg
-    = OnGamepad ( Time, Gamepad.Blob )
+    = OnGamepad ( Float, Gamepad.Blob )
 
 
 {-| This is for testing only. Don't use it.
@@ -142,7 +141,7 @@ indexToUnknownGamepad blob index =
 
 notConnectedError : Int -> Outcome presentation
 notConnectedError gamepadIndex =
-    Error <| "Gamepad " ++ toString gamepadIndex ++ " is not connected"
+    Error <| "Gamepad " ++ String.fromInt gamepadIndex ++ " is not connected"
 
 
 {-| The first argument is the index of the gamepad you want to remap.
@@ -343,7 +342,7 @@ view model =
 It matches the one you will find in [port/GamepadPort.elm](https://github.com/xarvh/elm-gamepad/blob/master/port/GamepadPort.elm)
 -}
 type alias PortSubscription msg =
-    (( Time, Gamepad.Blob ) -> msg) -> Sub msg
+    (( Float, Gamepad.Blob ) -> msg) -> Sub msg
 
 
 {-| -}
