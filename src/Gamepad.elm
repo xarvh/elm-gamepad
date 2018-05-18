@@ -1,52 +1,52 @@
 module Gamepad
     exposing
         ( Blob
+        , Database
+        , Destination(..)
+        , Gamepad
+        , Origin
         , RawGamepad
           -- database
-        , Database
-        , emptyDatabase
-        , databaseToString
-        , databaseFromString
-          -- unknown gamepads
         , UnknownGamepad
-        , getUnknownGamepads
-        , unknownGetId
-        , unknownGetIndex
-          -- known gamepads
-        , Gamepad
-        , getGamepads
-        , getIndex
         , aIsPressed
         , bIsPressed
-        , xIsPressed
-        , yIsPressed
-        , startIsPressed
         , backIsPressed
-        , homeIsPressed
-        , dpadUpIsPressed
+        , buttonMapToUpdateDatabase
+        , databaseFromString
+          -- unknown gamepads
+        , databaseToString
         , dpadDownIsPressed
         , dpadLeftIsPressed
         , dpadRightIsPressed
+        , dpadUpIsPressed
         , dpadX
         , dpadY
-        , leftX
-        , leftY
-        , leftStickIsPressed
+        , emptyDatabase
+        , estimateOrigin
+        , getAllGamepadsAsUnknown
+        , getGamepads
+        , getIndex
+        , getUnknownGamepads
+        , homeIsPressed
         , leftBumperIsPressed
+        , leftStickIsPressed
         , leftTriggerIsPressed
         , leftTriggerValue
-        , rightX
-        , rightY
-        , rightStickIsPressed
+        , leftX
+        , leftY
         , rightBumperIsPressed
+        , rightStickIsPressed
         , rightTriggerIsPressed
         , rightTriggerValue
           -- mapping
-        , Origin
-        , Destination(..)
-        , estimateOrigin
-        , buttonMapToUpdateDatabase
-        , getAllGamepadsAsUnknown
+        , rightX
+        , rightY
+        , startIsPressed
+        , unknownGetId
+        , unknownGetIndex
+          -- known gamepads
+        , xIsPressed
+        , yIsPressed
         )
 
 {-| A library to make sense of
@@ -413,12 +413,12 @@ buttonMap map =
         tupleToString ( destinationAsString, origin ) =
             destinationAsString ++ ":" ++ originToCode origin
     in
-        map
-            |> List.map tupleDestinationToString
-            |> fixAllAxesCoupling
-            |> List.map tupleToString
-            |> List.sortBy identity
-            |> String.join ","
+    map
+        |> List.map tupleDestinationToString
+        |> fixAllAxesCoupling
+        |> List.map tupleToString
+        |> List.sortBy identity
+        |> String.join ","
 
 
 {-| This function inserts a button map for a given gamepad Id in a [Database](#Database),
@@ -467,11 +467,11 @@ databaseToString (Database database) =
         tupleToString ( gamepadId, map ) =
             gamepadId ++ buttonMapDivider ++ map ++ "\n"
     in
-        database
-            |> Dict.toList
-            |> List.map tupleToString
-            |> List.sortBy identity
-            |> String.join ""
+    database
+        |> Dict.toList
+        |> List.map tupleToString
+        |> List.sortBy identity
+        |> String.join ""
 
 
 {-| Decodes a Database from a String, useful to load a persisted Database.
@@ -493,14 +493,14 @@ databaseFromString databaseAsString =
                 _ ->
                     Nothing
     in
-        databaseAsString
-            |> String.split "\n"
-            |> List.map stringToTuple
-            |> List.filterMap identity
-            |> Dict.fromList
-            |> Database
-            -- TODO: detect and return errors instead of ignoring them silently
-            |> Ok
+    databaseAsString
+        |> String.split "\n"
+        |> List.map stringToTuple
+        |> List.filterMap identity
+        |> Dict.fromList
+        |> Database
+        -- TODO: detect and return errors instead of ignoring them silently
+        |> Ok
 
 
 
@@ -584,9 +584,9 @@ getKnownAndUnknownGamepads database blob =
                     , unknown
                     )
     in
-        blob
-            |> getRawGamepads
-            |> List.foldr foldRawGamepad ( [], [] )
+    blob
+        |> getRawGamepads
+        |> List.foldr foldRawGamepad ( [], [] )
 
 
 {-| Get a List of all recognised Gamepads (ie, those that can be found in the Database).
@@ -658,10 +658,10 @@ mappingToRawIndex destination mapping =
         regex =
             "(^|,)" ++ destinationToString destination ++ ":(-)?([a-z]?)([0-9]+)(,|$)"
     in
-        mapping
-            |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
-            |> List.head
-            |> Maybe.andThen regexMatchToInputTuple
+    mapping
+        |> Regex.find (Regex.AtMost 1) (Regex.regex regex)
+        |> List.head
+        |> Maybe.andThen regexMatchToInputTuple
 
 
 axisToButton : Float -> Bool
@@ -1003,9 +1003,9 @@ estimateOrigin (UnknownGamepad rawGamepad) =
         buttonsEstimates =
             Array.indexedMap buttonToEstimate rawGamepad.buttons
     in
-        Array.append axesEstimates buttonsEstimates
-            |> Array.toList
-            |> List.sortBy Tuple.second
-            |> List.reverse
-            |> List.head
-            |> Maybe.andThen estimateThreshold
+    Array.append axesEstimates buttonsEstimates
+        |> Array.toList
+        |> List.sortBy Tuple.second
+        |> List.reverse
+        |> List.head
+        |> Maybe.andThen estimateThreshold

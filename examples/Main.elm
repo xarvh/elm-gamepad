@@ -1,6 +1,6 @@
 module Main exposing (..)
 
-import Gamepad exposing (Gamepad, UnknownGamepad, Destination(..))
+import Gamepad exposing (Destination(..), Gamepad, UnknownGamepad)
 import Gamepad.Remap exposing (Outcome(..))
 import GamepadPort
 import Html exposing (..)
@@ -116,11 +116,11 @@ init flags =
                 |> Gamepad.databaseFromString
                 |> Result.withDefault Gamepad.emptyDatabase
     in
-        noCmd
-            { gamepadDatabase = gamepadDatabase
-            , gamepadDatabaseKey = flags.gamepadDatabaseKey
-            , state = Display Nothing
-            }
+    noCmd
+        { gamepadDatabase = gamepadDatabase
+        , gamepadDatabaseKey = flags.gamepadDatabaseKey
+        , state = Display Nothing
+        }
 
 
 
@@ -171,7 +171,7 @@ updateRemap remapOutcome model =
                         , gamepadDatabase = gamepadDatabase
                     }
             in
-                ( newModel, cmd )
+            ( newModel, cmd )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -234,38 +234,38 @@ viewGamepad gamepad =
                 []
                 [ text <| name ++ ": " ++ toString (getter gamepad) ]
     in
-        ( index
+    ( index
+    , div
+        []
+        [ ul
+            []
+            [ viewControl Gamepad.aIsPressed "A"
+            , viewControl Gamepad.bIsPressed "B"
+            , viewControl Gamepad.xIsPressed "X"
+            , viewControl Gamepad.yIsPressed "Y"
+            , viewControl Gamepad.startIsPressed "Start"
+            , viewControl Gamepad.backIsPressed "Back"
+            , viewControl Gamepad.homeIsPressed "Home"
+            , viewControl Gamepad.dpadX "Dpad X"
+            , viewControl Gamepad.dpadY "Dpad Y"
+            , viewControl Gamepad.leftX "Left X"
+            , viewControl Gamepad.leftY "Left Y"
+            , viewControl Gamepad.leftStickIsPressed "Left Stick"
+            , viewControl Gamepad.leftBumperIsPressed "Left Bumper"
+            , viewControl Gamepad.leftTriggerIsPressed "Left Trigger (digital)"
+            , viewControl Gamepad.leftTriggerValue "Left Trigger (analog)"
+            , viewControl Gamepad.rightX "Right X"
+            , viewControl Gamepad.rightY "Right Y"
+            , viewControl Gamepad.rightStickIsPressed "Right Stick"
+            , viewControl Gamepad.rightBumperIsPressed "Right Bumper"
+            , viewControl Gamepad.rightTriggerIsPressed "Right Trigger (digital)"
+            , viewControl Gamepad.rightTriggerValue "Right Trigger (analog)"
+            ]
         , div
             []
-            [ ul
-                []
-                [ viewControl Gamepad.aIsPressed "A"
-                , viewControl Gamepad.bIsPressed "B"
-                , viewControl Gamepad.xIsPressed "X"
-                , viewControl Gamepad.yIsPressed "Y"
-                , viewControl Gamepad.startIsPressed "Start"
-                , viewControl Gamepad.backIsPressed "Back"
-                , viewControl Gamepad.homeIsPressed "Home"
-                , viewControl Gamepad.dpadX "Dpad X"
-                , viewControl Gamepad.dpadY "Dpad Y"
-                , viewControl Gamepad.leftX "Left X"
-                , viewControl Gamepad.leftY "Left Y"
-                , viewControl Gamepad.leftStickIsPressed "Left Stick"
-                , viewControl Gamepad.leftBumperIsPressed "Left Bumper"
-                , viewControl Gamepad.leftTriggerIsPressed "Left Trigger (digital)"
-                , viewControl Gamepad.leftTriggerValue "Left Trigger (analog)"
-                , viewControl Gamepad.rightX "Right X"
-                , viewControl Gamepad.rightY "Right Y"
-                , viewControl Gamepad.rightStickIsPressed "Right Stick"
-                , viewControl Gamepad.rightBumperIsPressed "Right Bumper"
-                , viewControl Gamepad.rightTriggerIsPressed "Right Trigger (digital)"
-                , viewControl Gamepad.rightTriggerValue "Right Trigger (analog)"
-                ]
-            , div
-                []
-                [ viewRemapButton index ]
-            ]
-        )
+            [ viewRemapButton index ]
+        ]
+    )
 
 
 viewUnknownGamepad : UnknownGamepad -> ( Int, Html Msg )
@@ -274,13 +274,13 @@ viewUnknownGamepad unknownGamepad =
         index =
             Gamepad.unknownGetIndex unknownGamepad
     in
-        ( index
-        , div
-            []
-            [ text "I don't know any mapping for this gamepad, but you can remap it."
-            , viewRemapButton index
-            ]
-        )
+    ( index
+    , div
+        []
+        [ text "I don't know any mapping for this gamepad, but you can remap it."
+        , viewRemapButton index
+        ]
+    )
 
 
 viewGamepadsBlob : Model -> Gamepad.Blob -> Html Msg
@@ -294,10 +294,10 @@ viewGamepadsBlob model blob =
                 |> List.sortBy Tuple.first
                 |> List.map Tuple.second
     in
-        if List.length views > 0 then
-            div [] views
-        else
-            text "No gamepads detected."
+    if List.length views > 0 then
+        div [] views
+    else
+        text "No gamepads detected."
 
 
 view : Model -> Html Msg
