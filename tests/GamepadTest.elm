@@ -2,9 +2,9 @@ module GamepadTest exposing (..)
 
 import Array exposing (Array)
 import Expect exposing (Expectation)
-import Gamepad exposing (Gamepad, RawGamepad, Blob)
-import Gamepad.Remap exposing (Outcome(StillOpen, Error, UpdateDatabase))
 import Fuzz exposing (Fuzzer)
+import Gamepad exposing (Blob, Gamepad, RawGamepad)
+import Gamepad.Remap exposing (Outcome(Error, StillOpen, UpdateDatabase))
 import Test exposing (Test, describe)
 
 
@@ -23,9 +23,13 @@ repeat n fuzzer =
             if n == 0 then
                 Fuzz.constant list
             else
-                fuzzer &> \a -> recursive (n - 1) (a :: list)
+                fuzzer &> (\a -> recursive (n - 1) (a :: list))
     in
-        recursive n []
+    recursive n []
+
+
+removeNewlines =
+    String.lines >> String.join ""
 
 
 
@@ -80,18 +84,18 @@ standardGamepadFuzzer =
             { axes = axes
             , buttons = buttons
             , connected = isConnected
-            , id = "(standard) " ++ id ++ " gamepad"
+            , id = "(standard) " ++ removeNewlines id ++ " gamepad"
             , index = index
             , mapping = "standard"
             , timestamp = 987
             }
     in
-        Fuzz.map5 makeRawGamepad
-            Fuzz.int
-            (axesFuzzer 4)
-            (buttonsFuzzer 16)
-            Fuzz.bool
-            Fuzz.string
+    Fuzz.map5 makeRawGamepad
+        Fuzz.int
+        (axesFuzzer 4)
+        (buttonsFuzzer 16)
+        Fuzz.bool
+        Fuzz.string
 
 
 nonStandardGamepadFuzzer : Fuzzer RawGamepad
@@ -101,20 +105,21 @@ nonStandardGamepadFuzzer =
             { axes = axes
             , buttons = buttons
             , connected = isConnected
-            , id = "(bleh) " ++ id
+            , id = "(bleh) " ++ removeNewlines id
             , index = index
             , mapping = ""
             , timestamp = 987
             }
     in
-        Fuzz.map2 (,) (Fuzz.intRange 0 8) (Fuzz.intRange 1 32)
-            &> \( axesCount, buttonsCount ) ->
+    Fuzz.map2 (,) (Fuzz.intRange 0 8) (Fuzz.intRange 1 32)
+        &> (\( axesCount, buttonsCount ) ->
                 Fuzz.map5 makeRawGamepad
                     Fuzz.int
                     (axesFuzzer axesCount)
                     (buttonsFuzzer buttonsCount)
                     Fuzz.bool
                     Fuzz.string
+           )
 
 
 windows10BuggedGamepadFuzzer : Fuzzer RawGamepad
@@ -124,16 +129,16 @@ windows10BuggedGamepadFuzzer =
             { axes = [ 0, 0 ] |> Array.fromList
             , buttons = [] |> Array.fromList
             , connected = isConnected
-            , id = "(windows 10) " ++ id
+            , id = "(windows 10) " ++ removeNewlines id
             , index = index
             , mapping = ""
             , timestamp = 0
             }
     in
-        Fuzz.map3 makeRawGamepad
-            Fuzz.int
-            Fuzz.bool
-            Fuzz.string
+    Fuzz.map3 makeRawGamepad
+        Fuzz.int
+        Fuzz.bool
+        Fuzz.string
 
 
 blobFuzzer : Fuzzer Gamepad.Blob
@@ -143,14 +148,14 @@ blobFuzzer =
         setIndex index maybePad =
             Maybe.map (\pad -> { pad | index = index }) maybePad
     in
-        [ standardGamepadFuzzer
-        , nonStandardGamepadFuzzer
-        , windows10BuggedGamepadFuzzer
-        ]
-            |> Fuzz.oneOf
-            |> Fuzz.maybe
-            |> Fuzz.list
-            |> Fuzz.map (List.indexedMap setIndex)
+    [ standardGamepadFuzzer
+    , nonStandardGamepadFuzzer
+    , windows10BuggedGamepadFuzzer
+    ]
+        |> Fuzz.oneOf
+        |> Fuzz.maybe
+        |> Fuzz.list
+        |> Fuzz.map (List.indexedMap setIndex)
 
 
 
@@ -177,9 +182,9 @@ correctlyListsGamepads =
                     Gamepad.getUnknownGamepads Gamepad.emptyDatabase blob
                         |> List.map Gamepad.unknownGetIndex
             in
-                Expect.equal
-                    ( actualKnownGamepadIds, actualUnknownGamepadIds )
-                    ( List.map .index expectedKnownGamepads, List.map .index expectedUnknownGamepads )
+            Expect.equal
+                ( actualKnownGamepadIds, actualUnknownGamepadIds )
+                ( List.map .index expectedKnownGamepads, List.map .index expectedUnknownGamepads )
 
 
 correctlyMapsStandardGamepads : Test
@@ -207,7 +212,7 @@ correctlyMapsStandardGamepads =
                         |> List.head
                         |> Maybe.map Gamepad.leftY
             in
-                Expect.equal actualLeftY expectedLeftY
+            Expect.equal actualLeftY expectedLeftY
 
 
 canOverrideAStandardGamepad : Test
@@ -237,7 +242,7 @@ canOverrideAStandardGamepad =
                         |> List.head
                         |> Maybe.map Gamepad.leftY
             in
-                Expect.equal actualLeftY expectedLeftY
+            Expect.equal actualLeftY expectedLeftY
 
 
 canMapANonStandardGamepad : Test
@@ -268,7 +273,7 @@ canMapANonStandardGamepad =
                         |> List.head
                         |> Maybe.map Gamepad.leftY
             in
-                Expect.equal actualLeftY expectedLeftY
+            Expect.equal actualLeftY expectedLeftY
 
 
 
@@ -286,7 +291,7 @@ chainInputs outcome blobs =
                 newOutcome =
                     Gamepad.Remap.update msg model
             in
-                chainInputs newOutcome bs
+            chainInputs newOutcome bs
 
         ( _, _ ) ->
             outcome
@@ -308,12 +313,12 @@ canRemapStandardGamepads =
                         outcome =
                             chainInputs (StillOpen model) [ blob ]
                     in
-                        case outcome of
-                            Error message ->
-                                Expect.equal message "Gamepad 1 is not connected"
+                    case outcome of
+                        Error message ->
+                            Expect.equal message "Gamepad 1 is not connected"
 
-                            _ ->
-                                Expect.fail "did not produce an error"
+                        _ ->
+                            Expect.fail "did not produce an error"
 
                 -- Test remapping a connected gamepad
                 Just firstGamepadIndex ->
@@ -331,12 +336,12 @@ canRemapStandardGamepads =
                                 , mapBlob pressNone blob
                                 ]
                     in
-                        case outcome of
-                            StillOpen model ->
-                                Expect.fail "Did not complete remapping"
+                    case outcome of
+                        StillOpen model ->
+                            Expect.fail "Did not complete remapping"
 
-                            Error message ->
-                                Expect.fail message
+                        Error message ->
+                            Expect.fail message
 
-                            UpdateDatabase updateDb ->
-                                Expect.pass
+                        UpdateDatabase updateDb ->
+                            Expect.pass

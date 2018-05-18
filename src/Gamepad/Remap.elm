@@ -1,18 +1,18 @@
 module Gamepad.Remap
     exposing
-        ( Outcome(..)
-        , Model
+        ( Model
         , Msg
+        , Outcome(..)
         , PortSubscription
-        , init
-        , update
-        , view
-        , subscriptions
-          -- utility
         , getCurrentButton
         , getTargetGamepadIndex
+        , init
         , skipCurrentButton
+        , subscriptions
+          -- utility
         , testMsg
+        , update
+        , view
         )
 
 {-| This module contains the [Elm Architecture](#https://guide.elm-lang.org/architecture/)
@@ -134,10 +134,10 @@ indexToUnknownGamepad blob index =
         isTargetGamepad unknownGamepad =
             Gamepad.unknownGetIndex unknownGamepad == index
     in
-        blob
-            |> Gamepad.getAllGamepadsAsUnknown
-            |> List.filter isTargetGamepad
-            |> List.head
+    blob
+        |> Gamepad.getAllGamepadsAsUnknown
+        |> List.filter isTargetGamepad
+        |> List.head
 
 
 notConnectedError : Int -> Outcome presentation
@@ -188,7 +188,7 @@ configuredButtonsToOutcome targetUnknownGamepad configuredButtons =
             configuredButtons
                 |> List.map configuredButtonToTuple
     in
-        Gamepad.buttonMapToUpdateDatabase targetUnknownGamepad map |> UpdateDatabase
+    Gamepad.buttonMapToUpdateDatabase targetUnknownGamepad map |> UpdateDatabase
 
 
 {-| You can use this function to allow the user to skip mapping the current
@@ -240,15 +240,15 @@ onButtonPress origin model =
                 configuredButtons =
                     buttonConfig :: model.configuredButtons
             in
-                if remainingButton == [] then
-                    configuredButtonsToOutcome model.targetUnknownGamepad configuredButtons
-                else
-                    { model
-                        | configuredButtons = configuredButtons
-                        , unconfiguredButtons = remainingButton
-                    }
-                        |> Ready
-                        |> StillOpen
+            if remainingButton == [] then
+                configuredButtonsToOutcome model.targetUnknownGamepad configuredButtons
+            else
+                { model
+                    | configuredButtons = configuredButtons
+                    , unconfiguredButtons = remainingButton
+                }
+                    |> Ready
+                    |> StillOpen
 
 
 onMaybePressedButton : Maybe Gamepad.Origin -> ModelRecord presentation -> Outcome presentation

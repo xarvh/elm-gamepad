@@ -7,10 +7,11 @@ function addGamepadPort(elmApp) {
     function () { return []; }
 
 
-  var previousTimestamp = performance.now();
-
-
-  raf();
+  var previousTimestamp;
+  requestAnimationFrame(function (timestamp) {
+    previousTimestamp = timestamp;
+    raf();
+  })
 
 
   function raf() {
