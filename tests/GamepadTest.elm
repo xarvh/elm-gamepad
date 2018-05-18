@@ -27,7 +27,8 @@ repeat n fuzzer =
     in
         recursive n []
 
-
+removeNewlines =
+  String.lines >> String.join ""
 
 -- Gamepad helpers
 
@@ -80,7 +81,7 @@ standardGamepadFuzzer =
             { axes = axes
             , buttons = buttons
             , connected = isConnected
-            , id = "(standard) " ++ id ++ " gamepad"
+            , id = "(standard) " ++ removeNewlines id ++ " gamepad"
             , index = index
             , mapping = "standard"
             , timestamp = 987
@@ -101,7 +102,7 @@ nonStandardGamepadFuzzer =
             { axes = axes
             , buttons = buttons
             , connected = isConnected
-            , id = "(bleh) " ++ id
+            , id = "(bleh) " ++ removeNewlines id
             , index = index
             , mapping = ""
             , timestamp = 987
@@ -124,7 +125,7 @@ windows10BuggedGamepadFuzzer =
             { axes = [ 0, 0 ] |> Array.fromList
             , buttons = [] |> Array.fromList
             , connected = isConnected
-            , id = "(windows 10) " ++ id
+            , id = "(windows 10) " ++ removeNewlines id
             , index = index
             , mapping = ""
             , timestamp = 0
