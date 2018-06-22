@@ -7,9 +7,9 @@ function addGamepadPort(elmApp) {
     function () { return []; }
 
 
-  var previousTimestamp;
+  var previousBlob;
   requestAnimationFrame(function (timestamp) {
-    previousTimestamp = timestamp;
+    previousBlob = { gamepads: [], timestamp: timestamp };
     raf();
   })
 
@@ -28,12 +28,11 @@ function addGamepadPort(elmApp) {
       serialisedGamepads.push(copyGamepad(gamepads[i]));
     }
 
-    elmApp.ports.gamepad.send([
-      timestamp - previousTimestamp,
-      serialisedGamepads,
-    ]);
+    var blob = { gamepads: serialisedGamepads, timestamp: timestamp };
 
-    previousTimestamp = timestamp;
+    elmApp.ports.gamepad.send([ blob, previousBlob ]);
+
+    previousBlob = blob;
   }
 
 

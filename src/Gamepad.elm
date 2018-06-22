@@ -211,7 +211,24 @@ that is nice to use with Elm.
 
 -}
 type alias Blob =
-    List (Maybe RawGamepad)
+    OpaqueBlob
+
+
+type alias OpaqueBlob =
+    ( State, State )
+
+
+type alias State =
+    { gamepads : List (Maybe RawGamepad)
+    , timestamp : Float
+    }
+
+
+current : Blob -> List (Maybe RawGamepad)
+current (c, p) =
+  c.gamepads
+
+
 
 
 {-| This type is exposed only for testing purposes. Don't use it.
@@ -544,6 +561,7 @@ isConnected rawGamepad =
 getRawGamepads : Blob -> List RawGamepad
 getRawGamepads blob =
     blob
+        |> current
         |> List.filterMap identity
         |> List.filter isConnected
 

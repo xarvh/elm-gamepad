@@ -45,7 +45,7 @@ type alias Model =
 
 
 type Msg
-    = OnGamepad ( Float, Gamepad.Blob )
+    = OnGamepad Gamepad.Blob
     | OnRemapMsg Gamepad.Remap.Msg
     | OnStartRemapping Int
     | OnContinue
@@ -207,8 +207,8 @@ update msg model =
 
         -- Gamepad input is used only when we are in `Display` status.
         -- (Gamepad.Remap has its own subscription to get gamepad data).
-        ( OnGamepad ( time, gamepadsBlob ), Display _ ) ->
-            noCmd <| { model | state = Display (Just gamepadsBlob) }
+        ( OnGamepad blob, Display _ ) ->
+            noCmd <| { model | state = Display (Just blob) }
 
         ( OnStartRemapping gamepadIndex, _ ) ->
             noCmd { model | state = Remapping <| Gamepad.Remap.init gamepadIndex controlsToMap }
@@ -294,6 +294,8 @@ viewUnknownGamepad unknownGamepad =
 
 viewGamepadsBlob : Model -> Gamepad.Blob -> Html Msg
 viewGamepadsBlob model blob =
+  blob |> Debug.toString |> text
+    {-
     let
         views =
             [ Gamepad.getGamepads model.gamepadDatabase blob |> List.map viewGamepad
@@ -307,6 +309,7 @@ viewGamepadsBlob model blob =
         div [] views
     else
         text "No gamepads detected."
+    -}
 
 
 view : Model -> Browser.Page Msg
@@ -345,7 +348,7 @@ view model =
                         [ text "Press ESC to abort" ]
                     ]
 
-            Display maybeGamepadsBlob ->
+            Display maybeBlob ->
                 div
                     []
                     [ div
@@ -353,12 +356,12 @@ view model =
                         []
                     , div
                         []
-                        [ case maybeGamepadsBlob of
+                        [ case maybeBlob of
                             Nothing ->
                                 text "Waiting..."
 
-                            Just gamepadsBlob ->
-                                viewGamepadsBlob model gamepadsBlob
+                            Just blob ->
+                                viewGamepadsBlob model blob
                         ]
                     ]
         ]
@@ -376,7 +379,7 @@ subscriptions model =
         , Browser.onDocument "keyup" (Decode.map OnKey keyDecoder)
         , case model.state of
             Remapping remapModel ->
-                Gamepad.Remap.subscriptions GamepadPort.gamepad |> Sub.map OnRemapMsg
+                Sub.none --Gamepad.Remap.subscriptions GamepadPort.gamepad |> Sub.map OnRemapMsg
 
             _ ->
                 Sub.none
