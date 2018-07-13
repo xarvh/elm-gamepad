@@ -12,9 +12,9 @@ This library allows you to use game controller aka gamepads in your Elm web app.
 **Important**: to avoid fingerprinting, the browser won't make gamepads visible until they are
 touched by the user!
 
-To use the library you need to **manually add a port** (see AddingPorts below).
+To use the library you need to **manually add a port**.
 You can use the one provided in [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
-(See the instructions below
+See Adding Ports below.
 
 Browser gamepad support is very inconsistent and varies wildly with the browser, the
 browser version, the operative system and the installed gamepad drivers.
