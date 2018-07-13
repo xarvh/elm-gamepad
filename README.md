@@ -1,28 +1,34 @@
 Elm Gamepad [![Travis build Status](https://travis-ci.org/xarvh/elm-gamepad.svg?branch=master)](http://travis-ci.org/xarvh/elm-gamepad)
 ===========
 
+![Standard Gamepad](controller.svg)
+
 This library allows you to use game controller aka gamepads in your Elm web app.
 
 * [See a running version of examples/Main.elm](https://xarvh.github.io/elm-gamepad/examples/)
 
-* [See an actual game that uses the library](https://xarvh.github.io/elm-haifisch/)
+* [See an actual game that uses the library](https://xarvh.github.io/herzog-drei/)
 
-Since pure Elm cannot access the [Navigator.getGamepads() Web API](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/getGamepads)
-that this library uses, **you will need to manually add a port**.
+**Important**: to avoid fingerprinting, the browser won't make gamepads visible until they are
+touched by the user!
+
+To use the library you need to [manually add a port](#AddingPorts).
 You can use the one provided in [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
+(See the instructions below
 
 Browser gamepad support is very inconsistent and varies wildly with the browser, the
 browser version, the operative system and the installed gamepad drivers.
 
 If you are lucky, the browser will recognize your gamepad(s) as a
-["Standard Gamepad"](https://www.w3.org/TR/gamepad/#remapping) which means that
+[Standard Gamepad](https://www.w3.org/TR/gamepad/#remapping) which means that
 you can use it with no remapping or configuration.
 
 Often times however, the browser does not recognise the gamepad: in this case
-you can still use it, but you will need to remap it: the `Gamepad.Remap` module
-will help you with that.
+you can still use it, but you will need to remap it with
+[the remap tool provided](http://package.elm-lang.org/packages/xarvh/elm-gamepad/latest/Gamepad#RemapModel).
 If you want everyone to be able to use your app, including gamepad remapping is
 super important.
+
 
 
 
@@ -39,58 +45,55 @@ type alias PlayerControl =
 
 
 type alias Model =
-    { gamepadDatabase : Gamepad.Database
-    , playerControls : List PlayerControl
+    { controls : List PlayerControl
+    }
+
+
+init : Model
+init =
+    { controls = []
     }
 
 
 type Msg
-    = OnGamepad ( Float, Gamepad.Blob )
+    = OnGamepad Gamepad.Blob
 
 
 gamepadToPlayerControl : Gamepad -> PlayerControl
 gamepadToPlayerControl gamepad =
     { playerId = Gamepad.getIndex gamepad
-    , isFiring = Gamepad.rightTriggerIsPressed gamepad
-    , speed = Gamepad.leftX gamepad
+    , isFiring = Gamepad.isPressed gamepad Gamepad.RightTrigger
+    , speed = Gamepad.value gamepad Gamepad.LeftX
     }
 
 
 update : Msg -> Model -> Model
 update msg model =
     case msg of
-        OnGamepad ( timeSinceLastFrameUpdate, blob ) ->
+        OnGamepad blob ->
             let
+                dt =
+                    -- Always cap, in case the page is hidden and refresh stops for a while
+                    min 200 (Gamepad.animationFrameDelta blob)
+
                 gamepads =
                     Gamepad.getGamepads model.gamepadDatabase blob
 
-                playerControls =
+                controls =
                     List.map gamepadToPlayerControl gamepads
             in
-                { model | playerControls = playerControls }
+            { model | controls = playerControls }
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
     GamepadPort.gamepad OnGamepad
-
 ```
-
-
-
-Important!
-==========
-
-Gamepad polling should be synchronised with the browser's animation frame.
-
-If you are using [elm-lang/animation-frame](http://package.elm-lang.org/packages/elm-lang/animation-frame/latest)
-you should remove it, and instead use the `Time` provided by the gamepad port,
-which works like the value provided by [AnimationFrame.diffs](http://package.elm-lang.org/packages/elm-lang/animation-frame/latest/AnimationFrame#diffs).
-
 
 
 Adding ports
 ============
+<a name="AddingPorts"></a>
 
 The ports required by elm-gamepad are no different than any other [Elm port](https://guide.elm-lang.org/interop/javascript.html).
 
@@ -111,5 +114,5 @@ You can get ready-to-use port code from [port/](https://github.com/xarvh/elm-gam
   addGamepadPort(elmApp);
 ```
 
-If you do not have another way to persist the gamepad database, you will want
+If you do not have another way to persist the user mappings, you will want
 to add also the local storage port, the procedure is exactly the same.
