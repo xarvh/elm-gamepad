@@ -14,7 +14,7 @@ touched by the user!
 
 To use the library you need to **manually add a port**.
 You can use the one provided in [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
-See Adding Ports below.
+See *Adding Ports* below.
 
 Browser gamepad support is very inconsistent and varies wildly with the browser, the
 browser version, the operative system and the installed gamepad drivers.
@@ -45,14 +45,12 @@ type alias PlayerControl =
 
 
 type alias Model =
-    { controls : List PlayerControl
-    }
+    { controls : List PlayerControl }
 
 
 init : Model
 init =
-    { controls = []
-    }
+    { controls = [] }
 
 
 type Msg
@@ -62,27 +60,35 @@ type Msg
 gamepadToPlayerControl : Gamepad -> PlayerControl
 gamepadToPlayerControl gamepad =
     { playerId = Gamepad.getIndex gamepad
-    , isFiring = Gamepad.isPressed gamepad Gamepad.RightTrigger
+    , isFiring = Gamepad.isPressed gamepad Gamepad.A
     , speed = Gamepad.value gamepad Gamepad.LeftX
     }
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         OnGamepad blob ->
-            let
-                dt =
-                    -- Always cap, in case the page is hidden and refresh stops for a while
-                    min 200 (Gamepad.animationFrameDelta blob)
+            ( updateOnGamepad blob model, Cmd.none )
 
-                gamepads =
-                    Gamepad.getGamepads model.gamepadDatabase blob
 
-                controls =
-                    List.map gamepadToPlayerControl gamepads
-            in
-            { model | controls = playerControls }
+updateOnGamepad : Gamepad.Blob -> Model -> Model
+updateOnGamepad blob model =
+    let
+        dt =
+            -- Always cap, in case the page is hidden
+            -- and refresh stops for a while
+            min 200 (Gamepad.animationFrameDelta blob)
+
+        gamepads =
+            Gamepad.getGamepads
+                Gamepad.emptyUserMappings
+                blob
+
+        controls =
+            List.map gamepadToPlayerControl gamepads
+    in
+    { model | controls = controls }
 
 
 subscriptions : Model -> Sub Msg
