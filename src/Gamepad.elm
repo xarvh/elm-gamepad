@@ -59,9 +59,9 @@ the user from having to remap the gamepad at every page load.
 # Animation Frame
 
 The library reads the state of the gamepads at every new animation frame of the browser, so if you are using
-[https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrame](Browser.Events.onAnimationFrame)
+[Browser.Events.onAnimationFrame](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrame)
 or
-[https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrameDelta](Browser.Events.onAnimationFrameDelta)
+[Browser.Events.onAnimationFrameDelta](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrameDelta)
 you should remove them, and instead use `animationFrameTimestamp` or `animationFrameDelta` to get the frame
 timing information from the `Blob`.
 

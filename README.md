@@ -1,7 +1,7 @@
 Elm Gamepad [![Travis build Status](https://travis-ci.org/xarvh/elm-gamepad.svg?branch=master)](http://travis-ci.org/xarvh/elm-gamepad)
 ===========
 
-![Standard Gamepad](controller.svg)
+![Standard Gamepad](https://xarvh.github.io/elm-gamepad/controller.svg)
 
 This library allows you to use game controller aka gamepads in your Elm web app.
 
@@ -12,7 +12,7 @@ This library allows you to use game controller aka gamepads in your Elm web app.
 **Important**: to avoid fingerprinting, the browser won't make gamepads visible until they are
 touched by the user!
 
-To use the library you need to [manually add a port](#AddingPorts).
+To use the library you need to **manually add a port** (see AddingPorts below).
 You can use the one provided in [port/](https://github.com/xarvh/elm-gamepad/tree/master/port).
 (See the instructions below
 
@@ -93,13 +93,12 @@ subscriptions model =
 
 Adding ports
 ============
-<a name="AddingPorts"></a>
 
 The ports required by elm-gamepad are no different than any other [Elm port](https://guide.elm-lang.org/interop/javascript.html).
 
 You can see how they are wired in in the [example's index.html](https://github.com/xarvh/elm-gamepad/blob/master/examples/index.html).
 
-You can get ready-to-use port code from [port/](https://github.com/xarvh/elm-gamepad/tree/master/port); you will need to:
+You can get ready-to-use port code from [port/](https://github.com/xarvh/elm-gamepad/tree/master/port):
 
 * Manually copy `GamepadPort.elm` in your Elm sources directory, so that you can import it as `GamepadPort`
 
@@ -110,7 +109,7 @@ You can get ready-to-use port code from [port/](https://github.com/xarvh/elm-gam
 
 * Register the port with the Elm app:
 ```javascript
-  var elmApp = Elm.Main.fullscreen();
+  var elmApp = Elm.Main.init();
   addGamepadPort(elmApp);
 ```
 
