@@ -13,13 +13,13 @@
     <script type="text/javascript" src="../port/localStoragePort.js"></script>
   </head>
   <body>
+    <div id='gamepad-example'></div>
     <script type="text/javascript">
-      // A single source of truth for the local storage key avoids frustrating bugs
-      var gamepadDatabaseKey = "gamepadDatabase";
-      // We pass gamepadDatabaseKey and gamepadDatabaseAsString as flags to Elm
-      var elmApp = Elm.Main.fullscreen({
-        gamepadDatabaseKey: gamepadDatabaseKey,
-        gamepadDatabaseAsString: localStorage[gamepadDatabaseKey] || "",
+      var elmApp = Elm.Main.init({
+        node: document.getElementById('gamepad-example'),
+        flags: {
+          userMappingsAsString: localStorage.userMappings || '',
+        }
       });
       addGamepadPort(elmApp);
       addLocalStoragePort(elmApp);
