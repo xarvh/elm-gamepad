@@ -1318,7 +1318,7 @@ Instead of a model, it takes as an argument the gamepad Port.
 
     subscriptions : Model -> Sub Msg
     subscriptions model =
-      Cmd.batch
+      Sub.batch
         [ Gamepad.remapSubscriptions GamepadPort.gamepad |> Sub.map OnRemapMsg
         , ...
         ]
