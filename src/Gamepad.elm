@@ -19,6 +19,8 @@ module Gamepad
         , isRemapping
         , leftStickPosition
         , remapInit
+        , setRemapLang
+        , setRemapTranslations
         , remapSubscriptions
         , remapUpdate
         , remapView
@@ -80,13 +82,14 @@ timing information from the `Blob`.
 
 # Remapping
 
-@docs RemapModel, RemapMsg, remapInit, remapSubscriptions, remapUpdate, remapView, isRemapping, haveUnmappedGamepads
+@docs RemapModel, RemapMsg, remapInit, setRemapLang, setRemapTranslations, remapSubscriptions, remapUpdate, remapView, isRemapping, haveUnmappedGamepads
 
 -}
 
 import Array exposing (Array)
 import Dict exposing (Dict)
 import Gamepad.Blob exposing (GamepadFrame)
+import Gamepad.I18n exposing (Translations, Lang(..), getLocale)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
@@ -892,6 +895,7 @@ type RemapModel
 type alias Model =
     { blob : Blob
     , maybeRemapping : Maybe Remapping
+    , trans : Translations
     }
 
 
@@ -988,7 +992,18 @@ remapInit =
     RemapModel
         { blob = Gamepad.Blob.emptyBlob
         , maybeRemapping = Nothing
+        , trans = getLocale En
         }
+
+
+setRemapLang : Lang -> RemapModel -> RemapModel
+setRemapLang lang =
+    setRemapTranslations (getLocale lang)
+
+
+setRemapTranslations : Translations -> RemapModel -> RemapModel
+setRemapTranslations translations (RemapModel model) =
+    RemapModel { model | trans = translations }
 
 
 
@@ -1136,18 +1151,18 @@ remapView actionNames db (RemapModel model) =
         [ class "elm-gamepad" ]
         [ case model.maybeRemapping of
             Just remapping ->
-                viewRemapping actionNames remapping
+                viewRemapping actionNames remapping model.trans
 
             Nothing ->
                 case getRaw model.blob of
                     [] ->
                         div
                             [ class "elm-gamepad-no-gamepads" ]
-                            [ text "No gamepads detected" ]
+                            [ text model.trans.noGamepadsDetected ]
 
                     idsAndIndices ->
                         idsAndIndices
-                            |> List.map (viewGamepad actionNames db model.blob)
+                            |> List.map (viewGamepad actionNames db model.blob model.trans)
                             |> ul [ class "elm-gamepad-gamepad-list" ]
         , node "style"
             []
@@ -1174,8 +1189,8 @@ cssStyle =
 --
 
 
-viewRemapping : List Action -> Remapping -> Html RemapMsg
-viewRemapping actions remapping =
+viewRemapping : List Action -> Remapping -> Translations -> Html RemapMsg
+viewRemapping actions remapping trans =
     let
         statusClass =
             class "elm-gamepad-remapping-tellsUserWhatIsHappening"
@@ -1189,30 +1204,30 @@ viewRemapping actions remapping =
                 [ class "elm-gamepad-remapping-complete" ]
                 [ div
                     [ statusClass ]
-                    [ text <| "Remapping Gamepad " ++ String.fromInt remapping.index ++ " complete." ]
+                    [ text <| trans.remappingGamepadComplete remapping.index ]
                 , div
                     [ instructionClass ]
-                    [ text "Press any button to go back." ]
+                    [ text trans.pressAnyButtonToGoBack ]
                 ]
 
         Just ( actionName, destination ) ->
             div
                 [ class "elm-gamepad-remapping" ]
                 [ div [ statusClass ]
-                    [ text <| "Remapping Gamepad " ++ String.fromInt remapping.index ]
+                    [ text <| trans.remappingGamepad remapping.index ]
                 , div [ instructionClass ]
-                    [ text "Press:" ]
+                    [ text trans.press ]
                 , div [ class "elm-gamepad-remapping-action-name" ]
                     [ text actionName ]
                 , div [ class "elm-gamepad-remapping-skip" ]
                     [ button
                         [ onClick (OnSkip destination) ]
-                        [ text "Skip this action" ]
+                        [ text trans.skipThisAction ]
                     ]
                 , div [ class "elm-gamepad-remapping-cancel" ]
                     [ button
                         [ onClick OnCancel ]
-                        [ text "Cancel remapping" ]
+                        [ text trans.cancelRemapping ]
                     ]
                 ]
 
@@ -1230,8 +1245,8 @@ findIndex index pads =
 --
 
 
-viewGamepad : List Action -> UserMappings -> Blob -> ( String, Int ) -> Html RemapMsg
-viewGamepad actions userMappings blob ( id, index ) =
+viewGamepad : List Action -> UserMappings -> Blob -> Translations -> ( String, Int ) -> Html RemapMsg
+viewGamepad actions userMappings blob trans ( id, index ) =
     let
         maybeGamepad =
             findIndex index (getGamepads userMappings blob)
@@ -1244,29 +1259,29 @@ viewGamepad actions userMappings blob ( id, index ) =
                 Nothing ->
                     { symbolFace = "✘"
                     , symbolClass = "elm-gamepad-mapping-unavailable"
-                    , buttonLabel = "Map"
-                    , status = "Needs mapping"
+                    , buttonLabel = trans.map
+                    , status = trans.needsMapping
                     , signal =
                         if estimateOrigin blob index == Nothing then
-                            "idle"
+                            trans.idle
                         else
-                            "Receiving signal"
+                            trans.receivingSignal
                     }
 
                 Just gamepad ->
                     { symbolFace = "✔"
                     , symbolClass = "elm-gamepad-mapping-available"
-                    , buttonLabel = "Remap"
+                    , buttonLabel = trans.remap
                     , status =
                         if maybeGamepad == maybeGamepadWithoutConfig then
-                            "Standard mapping"
+                            trans.standardMapping
                         else
-                            "Custom mapping"
+                            trans.customMapping
                     , signal =
                         actions
                             |> List.Extra.find (Tuple.second >> isPressed gamepad)
                             |> Maybe.map Tuple.first
-                            |> Maybe.withDefault "idle"
+                            |> Maybe.withDefault trans.idle
                     }
     in
     li
