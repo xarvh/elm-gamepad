@@ -46,9 +46,15 @@ translations : Dict String Translations
 translations =
     Dict.fromList
         [ ( "en", en )
+        , ( "en_us", en )
         , ( "en_US", en )
+        , ( "en-us", en )
+        , ( "en-US", en )
         , ( "fr", fr )
+        , ( "fr_fr", fr )
         , ( "fr_FR", fr )
+        , ( "fr-fr", fr )
+        , ( "fr-FR", fr )
         ]
 
 
