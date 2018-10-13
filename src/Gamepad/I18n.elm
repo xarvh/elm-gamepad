@@ -1,8 +1,27 @@
-module Gamepad.I18n exposing (Translations, translations, en, fr)
+module Gamepad.I18n exposing
+    ( Translations, translations
+    , en, fr
+    )
+
+{-|
+
+
+# Translations
+
+@docs Translations, translations
+
+
+# Locales
+
+@docs en, fr
+
+-}
 
 import Dict exposing (Dict)
 
 
+{-| Messages in the remapView
+-}
 type alias Translations =
     { noGamepadsDetected : String
     , remappingGamepadComplete : Int -> String
@@ -21,6 +40,8 @@ type alias Translations =
     }
 
 
+{-| Locales provided by this package, indexed by language code (for example "en") compatible with codes provided by `navigator.language` on the javascript side.
+-}
 translations : Dict String Translations
 translations =
     Dict.fromList
