@@ -261,7 +261,7 @@ view model =
     , body =
         case model.state of
             Remapping remapModel ->
-                [ Gamepad.remapView controlsToMap model.userMappings remapModel |> Html.map OnRemapMsg
+                [ Gamepad.remapView controlsToMap model.userMappings remapModel Nothing |> Html.map OnRemapMsg
                 , div [] []
                 , div [] []
                 , button [ Html.Events.onClick OnToggleRemap ] [ text "Close Remap Tool" ]

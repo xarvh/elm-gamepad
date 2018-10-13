@@ -19,8 +19,6 @@ module Gamepad
         , isRemapping
         , leftStickPosition
         , remapInit
-        , setRemapLang
-        , setRemapTranslations
         , remapSubscriptions
         , remapUpdate
         , remapView
@@ -82,14 +80,14 @@ timing information from the `Blob`.
 
 # Remapping
 
-@docs RemapModel, RemapMsg, remapInit, setRemapLang, setRemapTranslations, remapSubscriptions, remapUpdate, remapView, isRemapping, haveUnmappedGamepads
+@docs RemapModel, RemapMsg, remapInit, remapSubscriptions, remapUpdate, remapView, isRemapping, haveUnmappedGamepads
 
 -}
 
 import Array exposing (Array)
 import Dict exposing (Dict)
 import Gamepad.Blob exposing (GamepadFrame)
-import Gamepad.I18n exposing (Translations, Lang(..), getLocale)
+import Gamepad.I18n as I18n exposing (Translations)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
@@ -895,7 +893,6 @@ type RemapModel
 type alias Model =
     { blob : Blob
     , maybeRemapping : Maybe Remapping
-    , trans : Translations
     }
 
 
@@ -992,19 +989,7 @@ remapInit =
     RemapModel
         { blob = Gamepad.Blob.emptyBlob
         , maybeRemapping = Nothing
-        , trans = getLocale En
         }
-
-
-setRemapLang : Lang -> RemapModel -> RemapModel
-setRemapLang lang =
-    setRemapTranslations (getLocale lang)
-
-
-setRemapTranslations : Translations -> RemapModel -> RemapModel
-setRemapTranslations translations (RemapModel model) =
-    RemapModel { model | trans = translations }
-
 
 
 -- API -----------------------------------------------------------------------
@@ -1145,24 +1130,28 @@ You can use it as it is, or customise it with CSS: every element has its
 own class name, all names are prefixed with `elm-gamepad`.
 
 -}
-remapView : List Action -> UserMappings -> RemapModel -> Html RemapMsg
-remapView actionNames db (RemapModel model) =
+remapView : List Action -> UserMappings -> RemapModel -> Maybe Translations -> Html RemapMsg
+remapView actionNames db (RemapModel model) maybeTrans =
+    let
+        trans =
+            maybeTrans |> Maybe.withDefault I18n.en
+    in
     div
         [ class "elm-gamepad" ]
         [ case model.maybeRemapping of
             Just remapping ->
-                viewRemapping actionNames remapping model.trans
+                viewRemapping actionNames remapping trans
 
             Nothing ->
                 case getRaw model.blob of
                     [] ->
                         div
                             [ class "elm-gamepad-no-gamepads" ]
-                            [ text model.trans.noGamepadsDetected ]
+                            [ text trans.noGamepadsDetected ]
 
                     idsAndIndices ->
                         idsAndIndices
-                            |> List.map (viewGamepad actionNames db model.blob model.trans)
+                            |> List.map (viewGamepad actionNames db model.blob trans)
                             |> ul [ class "elm-gamepad-gamepad-list" ]
         , node "style"
             []

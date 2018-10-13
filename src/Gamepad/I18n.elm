@@ -1,4 +1,6 @@
-module Gamepad.I18n exposing (Lang(..), Translations, getLocale)
+module Gamepad.I18n exposing (Translations, translations, en, fr)
+
+import Dict exposing (Dict)
 
 
 type alias Translations =
@@ -19,44 +21,49 @@ type alias Translations =
     }
 
 
-type Lang
-    = En
-    | Fr
+translations : Dict String Translations
+translations =
+    Dict.fromList
+        [ ( "en", en )
+        , ( "en_US", en )
+        , ( "fr", fr )
+        , ( "fr_FR", fr )
+        ]
 
 
-getLocale : Lang -> Translations
-getLocale lang =
-    case lang of
-        En ->
-            { noGamepadsDetected = "No gamepads detected"
-            , remappingGamepadComplete = \id -> "Remapping Gamepad " ++ String.fromInt id ++ " complete."
-            , pressAnyButtonToGoBack = "Press any button to go back."
-            , remappingGamepad = \id -> "Remapping Gamepad " ++ String.fromInt id
-            , press = "Press:"
-            , skipThisAction = "Skip this action"
-            , cancelRemapping = "Cancel remapping"
-            , map = "Map"
-            , needsMapping = "Needs mapping"
-            , idle = "idle"
-            , receivingSignal = "Receiving signal"
-            , remap = "Remap"
-            , standardMapping = "Standard mapping"
-            , customMapping = "Custom mapping"
-            }
+en : Translations
+en =
+    { noGamepadsDetected = "No gamepads detected"
+    , remappingGamepadComplete = \id -> "Remapping Gamepad " ++ String.fromInt id ++ " complete."
+    , pressAnyButtonToGoBack = "Press any button to go back."
+    , remappingGamepad = \id -> "Remapping Gamepad " ++ String.fromInt id
+    , press = "Press:"
+    , skipThisAction = "Skip this action"
+    , cancelRemapping = "Cancel remapping"
+    , map = "Map"
+    , needsMapping = "Needs mapping"
+    , idle = "idle"
+    , receivingSignal = "Receiving signal"
+    , remap = "Remap"
+    , standardMapping = "Standard mapping"
+    , customMapping = "Custom mapping"
+    }
 
-        Fr ->
-            { noGamepadsDetected = "Aucune manette détectée"
-            , remappingGamepadComplete = \id -> "Configuration de la manette " ++ String.fromInt id ++ " terminée."
-            , pressAnyButtonToGoBack = "Pressez n'importe quelle touche pour revenir en arrière."
-            , remappingGamepad = \id -> "Configuration de la manette " ++ String.fromInt id
-            , press = "Pressez :"
-            , skipThisAction = "Passer cette action"
-            , cancelRemapping = "Annuler la configuration"
-            , map = "Attribuer"
-            , needsMapping = "Configuration nécessaire"
-            , idle = "inactif"
-            , receivingSignal = "Réception d'un signal"
-            , remap = "Configurer"
-            , standardMapping = "Configuration standard"
-            , customMapping = "Configuration personnalisée"
-            }
+
+fr : Translations
+fr =
+    { noGamepadsDetected = "Aucune manette détectée"
+    , remappingGamepadComplete = \id -> "Configuration de la manette " ++ String.fromInt id ++ " terminée."
+    , pressAnyButtonToGoBack = "Pressez n'importe quelle touche pour revenir en arrière."
+    , remappingGamepad = \id -> "Configuration de la manette " ++ String.fromInt id
+    , press = "Pressez :"
+    , skipThisAction = "Passer cette action"
+    , cancelRemapping = "Annuler la configuration"
+    , map = "Attribuer"
+    , needsMapping = "Configuration nécessaire"
+    , idle = "inactif"
+    , receivingSignal = "Réception d'un signal"
+    , remap = "Configurer"
+    , standardMapping = "Configuration standard"
+    , customMapping = "Configuration personnalisée"
+    }
