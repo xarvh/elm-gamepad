@@ -288,9 +288,14 @@ boolToString bool =
             "False"
 
 
+toString : Float -> String
+toString =
+    String.fromFloat >> String.left 7
+
+
 recordToString : { x : Float, y : Float } -> String
 recordToString { x, y } =
-    "{ x: " ++ String.fromFloat x ++ ", y: " ++ String.fromFloat y ++ " }"
+    "{ x: " ++ toString x ++ ", y: " ++ toString y ++ " }"
 
 
 dpadToString : { x : Int, y : Int } -> String
@@ -313,7 +318,7 @@ viewAnalog string =
 viewGamepad : Gamepad -> Html Msg
 viewGamepad gamepad =
     div
-        []
+        [ style "min-width" "22em" ]
         [ h3
             []
             [ "Gamepad " ++ String.fromInt (Gamepad.getIndex gamepad) |> text ]
@@ -338,7 +343,10 @@ viewGamepads model blob =
             List.map viewGamepad <| Gamepad.Advanced.getGamepads controlsToMap model.userMappings blob
     in
     if List.length views > 0 then
-        div [] views
+        div
+            [ style "display" "flex"
+            ]
+            views
     else
         div
             [ style "display" "flex"

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-ADD="examples/simple/app.js examples/advanced/app.js"
+ADD="examples/simple/*.js examples/advanced/*.js"
 
 
 CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
