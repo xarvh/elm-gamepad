@@ -1,6 +1,9 @@
 port module GamepadPort exposing (..)
 
-import Gamepad
+import Gamepad.Advanced exposing (Blob)
 
 
-port gamepad : (Gamepad.Blob -> msg) -> Sub msg
+port onBlob : (Blob -> msg) -> Sub msg
+
+
+port saveToLocalStorage : String -> Cmd a

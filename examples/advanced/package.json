@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "start": "make; elm-live Main.elm -u -- --output=app.js"
+  },
+  "devDependencies": {
+    "elm": "~0.19.0",
+    "elm-live": "^3.2.0"
+  }
+}

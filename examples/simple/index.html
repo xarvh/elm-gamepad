@@ -2,27 +2,22 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>Main</title>
+    <title>Elm Gamepad: Simple</title>
     <style>
       html,head,body { padding:0; margin:0; }
       body { font-family: calibri, helvetica, arial, sans-serif; }
     </style>
 
     <script type="text/javascript" src="app.js"></script>
-    <script type="text/javascript" src="../port/gamepadPort.js"></script>
-    <script type="text/javascript" src="../port/localStoragePort.js"></script>
+    <script type="text/javascript" src="gamepadPort.js"></script>
   </head>
   <body>
     <div id='gamepad-example'></div>
     <script type="text/javascript">
       var elmApp = Elm.Main.init({
         node: document.getElementById('gamepad-example'),
-        flags: {
-          userMappingsAsString: localStorage.userMappings || '',
-        }
       });
       addGamepadPort(elmApp);
-      addLocalStoragePort(elmApp);
     </script>
   </body>
 </html>

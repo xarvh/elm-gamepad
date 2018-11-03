@@ -1,4 +1,17 @@
 function addGamepadPort(elmApp) {
+  var localStorageKey = 'elm-gamepad-user-mappings';
+
+
+  elmApp.ports.saveToLocalStorage && elmApp.ports.saveToLocalStorage.subscribe(function (userMappings) {
+    localStorage.setItem(localStorageKey, userMappings);
+  });
+
+
+  var environment = {
+    userMappings: localStorage[localStorageKey] || '',
+    languages: navigator.languages || [],
+  };
+
 
   var getGamepads =
     typeof navigator.getGamepads === 'function' ? function () { return navigator.getGamepads(); } :
@@ -17,7 +30,7 @@ function addGamepadPort(elmApp) {
     requestAnimationFrame(onAnimationFrame);
 
     var currentFrame = getFrame();
-    elmApp.ports.gamepad.send([ currentFrame, previousFrame ]);
+    elmApp.ports.onBlob.send([ currentFrame, previousFrame, environment ]);
 
     previousFrame = currentFrame;
   }

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-ADD=examples/app.js
+ADD="examples/simple/app.js examples/advanced/app.js"
 
 
 CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
@@ -19,9 +19,14 @@ fi
 git branch -D gh-pages
 git checkout -b gh-pages
 
-cd $(dirname $0)/examples
+cd $(dirname $0)/examples/simple
 make
-cd ..
+cd ../..
+
+cd $(dirname $0)/examples/advanced
+make
+cd ../..
+
 
 git add -f $ADD
 git commit -m Publish
