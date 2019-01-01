@@ -286,6 +286,7 @@ type Msg
     | OnStartRemapping String Int
     | OnSkip Digital
     | OnCancel
+    | OnAdvanced
 
 
 
@@ -305,7 +306,12 @@ type alias WrappedModel =
     }
 
 
-type alias Remapping =
+type Remapping
+    = RemappingAutomatic ModelAutomatic
+    | RemappingManual ModelManual
+
+
+type alias ModelAutomatic =
     { id : String
     , index : Int
     , pairs : List ( Origin, Digital )
@@ -314,14 +320,31 @@ type alias Remapping =
     }
 
 
-initRemap : String -> Int -> Remapping
-initRemap id index =
+type alias ModelManual =
+    { id : String
+    , index : Int
+    , pairs : List ( Origin, Digital )
+    }
+
+
+initAutomatic : String -> Int -> Remapping
+initAutomatic id index =
     { id = id
     , index = index
     , pairs = []
     , skipped = []
     , waitingFor = AllButtonsUp
     }
+        |> RemappingAutomatic
+
+
+initManual : String -> Int -> List ( Origin, Digital ) -> Remapping
+initManual id index pairs =
+    { id = id
+    , index = index
+    , pairs = pairs
+    }
+        |> RemappingManual
 
 
 type alias Control =
@@ -333,7 +356,7 @@ type WaitingFor
     | SomeButtonDown
 
 
-nextUnmappedAction : List Control -> Remapping -> Maybe Control
+nextUnmappedAction : List Control -> ModelAutomatic -> Maybe Control
 nextUnmappedAction controls remapping =
     let
         mapped =
@@ -400,23 +423,34 @@ update msg (Model model) =
                 updateOnGamepad { model | blob = blob }
 
             OnStartRemapping id index ->
-                noCmd { model | maybeRemapping = Just (initRemap id index) }
+                noCmd { model | maybeRemapping = Just (initAutomatic id index) }
 
             OnCancel ->
                 noCmd { model | maybeRemapping = Nothing }
+
+            OnAdvanced ->
+                case model.maybeRemapping of
+                    Just (RemappingAutomatic { id, index, pairs }) ->
+                        noCmd { model | maybeRemapping = Just (initManual id index pairs) }
+
+                    _ ->
+                        noCmd model
 
             OnSkip digital ->
                 case model.maybeRemapping of
                     Nothing ->
                         noCmd model
 
-                    Just remapping ->
+                    Just (RemappingManual remapping) ->
+                        noCmd model
+
+                    Just (RemappingAutomatic remapping) ->
                         let
                             ( maybeRemapping, maybeUpdate ) =
                                 { remapping | skipped = digital :: remapping.skipped }
                                     |> maybeEndRemapping model.controls
                         in
-                        ( { model | maybeRemapping = maybeRemapping }, maybeUpdate )
+                        ( { model | maybeRemapping = Maybe.map RemappingAutomatic maybeRemapping }, maybeUpdate )
 
 
 noCmd : a -> ( a, Maybe (UserMappings -> UserMappings) )
@@ -430,13 +464,17 @@ updateOnGamepad model =
         Nothing ->
             noCmd model
 
-        Just remapping ->
-            updateRemapping remapping model
-                |> Tuple.mapFirst (\r -> { model | maybeRemapping = r })
+        Just (RemappingManual remapping) ->
+            --TODO
+            noCmd model
+
+        Just (RemappingAutomatic remapping) ->
+            updateAutomatic remapping model
+                |> Tuple.mapFirst (\r -> { model | maybeRemapping = Maybe.map RemappingAutomatic r })
 
 
-updateRemapping : Remapping -> WrappedModel -> ( Maybe Remapping, Maybe (UserMappings -> UserMappings) )
-updateRemapping remapping model =
+updateAutomatic : ModelAutomatic -> WrappedModel -> ( Maybe ModelAutomatic, Maybe (UserMappings -> UserMappings) )
+updateAutomatic remapping model =
     case ( remapping.waitingFor, estimateOrigin model.blob remapping.index ) of
         ( AllButtonsUp, Nothing ) ->
             noCmd <| Just <| { remapping | waitingFor = SomeButtonDown }
@@ -456,7 +494,7 @@ updateRemapping remapping model =
             noCmd <| Just <| remapping
 
 
-maybeEndRemapping : List Control -> Remapping -> ( Maybe Remapping, Maybe (UserMappings -> UserMappings) )
+maybeEndRemapping : List Control -> ModelAutomatic -> ( Maybe ModelAutomatic, Maybe (UserMappings -> UserMappings) )
 maybeEndRemapping controls remapping =
     if nextUnmappedAction controls remapping /= Nothing then
         ( Just remapping, Nothing )
@@ -480,7 +518,7 @@ maybeEndRemapping controls remapping =
         ( maybeRemapping, Just updateFunction )
 
 
-insertPair : Origin -> Digital -> Remapping -> Remapping
+insertPair : Origin -> Digital -> ModelAutomatic -> ModelAutomatic
 insertPair origin destination remapping =
     { remapping | pairs = ( origin, destination ) :: remapping.pairs }
 
@@ -522,8 +560,11 @@ view db (Model model) =
     div
         [ class "elm-gamepad" ]
         [ case model.maybeRemapping of
-            Just remapping ->
-                viewRemapping model.controls remapping translation
+            Just (RemappingAutomatic remapping) ->
+                viewAutomatic model.controls remapping translation
+
+            Just (RemappingManual remapping) ->
+                viewManual model remapping translation
 
             Nothing ->
                 case currentBlobFrame.gamepads of
@@ -553,8 +594,55 @@ cssStyle =
         ]
 
 
-viewRemapping : List Control -> Remapping -> Translation -> Html Msg
-viewRemapping controls remapping translation =
+viewManual : WrappedModel -> ModelManual -> Translation -> Html Msg
+viewManual model remapping translation =
+    let
+        ( currentBlobFrame, previousBlobFrame, enc ) =
+            model.blob
+    in
+    div
+        []
+        [ case List.Extra.find (\g -> g.index == remapping.index) currentBlobFrame.gamepads of
+            Nothing ->
+                text "TODO disconnected"
+
+            Just gamepadFrame ->
+                let
+                    axes =
+                        gamepadFrame.axes
+                            |> Array.toList
+                            |> List.indexedMap (viewAxis model.controls remapping.pairs)
+
+                    buttons =
+                        gamepadFrame.buttons
+                            |> Array.toList
+                            |> List.indexedMap (viewButtons model.controls remapping.pairs)
+                in
+                ul [] (axes ++ buttons)
+        , div
+            []
+            [ button
+                []
+                [ text "TODO Accept" ]
+            , button
+                []
+                [ text "TODO Cancel" ]
+            ]
+        ]
+
+
+viewAxis : List Control -> List ( Origin, Digital ) -> Int -> Float -> Html Msg
+viewAxis controls pairs index value =
+    text "TODO axis"
+
+
+viewButtons : List Control -> List ( Origin, Digital ) -> Int -> ( Bool, Float ) -> Html Msg
+viewButtons controls pairs index value =
+    text "TODO button"
+
+
+viewAutomatic : List Control -> ModelAutomatic -> Translation -> Html Msg
+viewAutomatic controls remapping translation =
     let
         statusClass =
             class "elm-gamepad-remapping-tellsUserWhatIsHappening"
@@ -592,6 +680,11 @@ viewRemapping controls remapping translation =
                     [ button
                         [ onClick OnCancel ]
                         [ text translation.cancelRemapping ]
+                    ]
+                , div [ class "elm-gamepad-remapping-advanced" ]
+                    [ button
+                        [ onClick OnAdvanced ]
+                        [ text "TODO" ]
                     ]
                 ]
 
