@@ -79,7 +79,7 @@ import Gamepad.Private as Private
         ( Gamepad(..)
         , GamepadFrame
         , Mapping
-        , Origin(..)
+        , Origin
         , OriginType(..)
         , boolToNumber
         )
@@ -119,12 +119,10 @@ type UserMappings
         }
 
 
-{-| Making the `Origin` type available here would cause a circular dependency
-pairsToMapping : List ( Origin, Digital ) -> Mapping
--}
+pairsToMapping : (Digital -> String) -> List ( Origin, Digital ) -> Mapping
 pairsToMapping digitalToString pairs =
     pairs
-        |> List.map (\( origin, digital ) -> ( digitalToString digital, origin ))
+        |> List.map (\( origin, digital ) -> ( digitalToString digital, [ origin ] ))
         |> Dict.fromList
 
 
@@ -323,7 +321,7 @@ type alias ModelAutomatic =
 type alias ModelManual =
     { id : String
     , index : Int
-    , pairs : List ( Origin, Digital )
+    , mapping : Mapping
     }
 
 
@@ -338,13 +336,14 @@ initAutomatic id index =
         |> RemappingAutomatic
 
 
-initManual : String -> Int -> List ( Origin, Digital ) -> Remapping
-initManual id index pairs =
-    { id = id
-    , index = index
-    , pairs = pairs
+automaticToManual : ModelAutomatic -> ModelManual
+automaticToManual automatic =
+    { id = automatic.id
+    , index = automatic.index
+
+    -- TODO: if automatic.pairs is empty, use current mapping
+    , mapping = pairsToMapping Gamepad.digitalToString automatic.pairs
     }
-        |> RemappingManual
 
 
 type alias Control =
@@ -430,8 +429,14 @@ update msg (Model model) =
 
             OnAdvanced ->
                 case model.maybeRemapping of
-                    Just (RemappingAutomatic { id, index, pairs }) ->
-                        noCmd { model | maybeRemapping = Just (initManual id index pairs) }
+                    Just (RemappingAutomatic automatic) ->
+                        noCmd
+                            { model
+                                | maybeRemapping =
+                                    automaticToManual automatic
+                                        |> RemappingManual
+                                        |> Just
+                            }
 
                     _ ->
                         noCmd model
@@ -595,14 +600,14 @@ cssStyle =
 
 
 viewManual : WrappedModel -> ModelManual -> Translation -> Html Msg
-viewManual model remapping translation =
+viewManual model manual translation =
     let
         ( currentBlobFrame, previousBlobFrame, enc ) =
             model.blob
     in
     div
         []
-        [ case List.Extra.find (\g -> g.index == remapping.index) currentBlobFrame.gamepads of
+        [ case List.Extra.find (\g -> g.index == manual.index) currentBlobFrame.gamepads of
             Nothing ->
                 text "TODO disconnected"
 
@@ -611,12 +616,12 @@ viewManual model remapping translation =
                     axes =
                         gamepadFrame.axes
                             |> Array.toList
-                            |> List.indexedMap (viewAxis model.controls remapping.pairs)
+                            |> List.indexedMap (viewAxis model.controls manual.mapping)
 
                     buttons =
                         gamepadFrame.buttons
                             |> Array.toList
-                            |> List.indexedMap (viewButtons model.controls remapping.pairs)
+                            |> List.indexedMap (viewButtons model.controls manual.mapping)
                 in
                 ul [] (axes ++ buttons)
         , div
@@ -631,18 +636,18 @@ viewManual model remapping translation =
         ]
 
 
-viewAxis : List Control -> List ( Origin, Digital ) -> Int -> Float -> Html Msg
-viewAxis controls pairs index value =
+viewAxis : List Control -> Mapping -> Int -> Float -> Html Msg
+viewAxis controls mapping index value =
     text "TODO axis"
 
 
-viewButtons : List Control -> List ( Origin, Digital ) -> Int -> ( Bool, Float ) -> Html Msg
-viewButtons controls pairs index value =
+viewButtons : List Control -> Mapping -> Int -> ( Bool, Float ) -> Html Msg
+viewButtons controls mapping index value =
     text "TODO button"
 
 
 viewAutomatic : List Control -> ModelAutomatic -> Translation -> Html Msg
-viewAutomatic controls remapping translation =
+viewAutomatic controls automatic translation =
     let
         statusClass =
             class "elm-gamepad-remapping-tellsUserWhatIsHappening"
@@ -650,13 +655,13 @@ viewAutomatic controls remapping translation =
         instructionClass =
             class "elm-gamepad-remapping-tellsUserWhatToDo"
     in
-    case nextUnmappedAction controls remapping of
+    case nextUnmappedAction controls automatic of
         Nothing ->
             div
                 [ class "elm-gamepad-remapping-complete" ]
                 [ div
                     [ statusClass ]
-                    [ text <| translation.remappingGamepadComplete remapping.index ]
+                    [ text <| translation.remappingGamepadComplete automatic.index ]
                 , div
                     [ instructionClass ]
                     [ text translation.pressAnyButtonToGoBack ]
@@ -666,7 +671,7 @@ viewAutomatic controls remapping translation =
             div
                 [ class "elm-gamepad-remapping" ]
                 [ div [ statusClass ]
-                    [ text <| translation.remappingGamepad remapping.index ]
+                    [ text <| translation.remappingGamepad automatic.index ]
                 , div [ instructionClass ]
                     [ text translation.press ]
                 , div [ class "elm-gamepad-remapping-action-name" ]
@@ -907,14 +912,14 @@ encodeUserMappings (UserMappings database) =
 
         encodeMapping : Mapping -> Json.Encode.Value
         encodeMapping mapping =
-            Json.Encode.dict identity encodeOrigin mapping
+            Json.Encode.dict identity (Json.Encode.list encodeOrigin) mapping
 
         encodeOrigin : Origin -> Json.Encode.Value
-        encodeOrigin (Origin isReverse type_ index) =
+        encodeOrigin origin =
             Json.Encode.object
-                [ ( "isReverse", Json.Encode.bool isReverse )
-                , ( "type", encodeOriginType type_ )
-                , ( "index", Json.Encode.int index )
+                [ ( "isReverse", Json.Encode.bool origin.isReverse )
+                , ( "type", encodeOriginType origin.type_ )
+                , ( "index", Json.Encode.int origin.index )
                 ]
 
         encodeOriginType : OriginType -> Json.Encode.Value
@@ -945,7 +950,7 @@ userMappingsDecoder =
         tuplesDecoder =
             Json.Decode.map2 Tuple.pair
                 keyDecoder
-                (Json.Decode.field "mapping" (Json.Decode.dict originDecoder))
+                (Json.Decode.field "mapping" (Json.Decode.dict (Json.Decode.list originDecoder)))
 
         keyDecoder : Json.Decode.Decoder ( Int, String )
         keyDecoder =

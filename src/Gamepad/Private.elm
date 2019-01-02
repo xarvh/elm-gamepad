@@ -68,12 +68,15 @@ type OriginType
     | Button
 
 
-type Origin
-    = Origin Bool OriginType Int
+type alias Origin =
+    { isReverse : Bool
+    , type_ : OriginType
+    , index : Int
+    }
 
 
 type alias Mapping =
-    Dict String Origin
+    Dict String (List Origin)
 
 
 

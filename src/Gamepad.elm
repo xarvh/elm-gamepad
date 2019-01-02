@@ -50,7 +50,7 @@ import Gamepad.Private as Private
     exposing
         ( GamepadFrame
         , Mapping
-        , Origin(..)
+        , Origin
         , OriginType(..)
         , boolToNumber
         )
@@ -339,9 +339,14 @@ value (Private.Gamepad mapping currentFrame previousFrame) analog =
             getAxis negative positive mapping currentFrame
 
 
-mappingToOrigin : Digital -> Mapping -> Maybe Origin
-mappingToOrigin destination mapping =
-    Dict.get (digitalToString destination) mapping
+mappingToOrigins : Digital -> Mapping -> List Origin
+mappingToOrigins destination mapping =
+    case Dict.get (digitalToString destination) mapping of
+        Nothing ->
+            []
+
+        Just origins ->
+            origins
 
 
 axisToButton : Float -> Bool
@@ -354,6 +359,10 @@ buttonToAxis =
     boolToNumber
 
 
+
+-- Gamepad frame to bool
+
+
 reverseAxis : Bool -> Float -> Float
 reverseAxis isReverse n =
     if isReverse then
@@ -362,39 +371,52 @@ reverseAxis isReverse n =
         n
 
 
-getAsBool : Digital -> Mapping -> GamepadFrame -> Bool
-getAsBool destination mapping frame =
-    case mappingToOrigin destination mapping of
-        Nothing ->
-            False
-
-        Just (Origin isReverse Axis index) ->
-            Array.get index frame.axes
+originToBool : GamepadFrame -> Origin -> Bool
+originToBool frame origin =
+    case origin.type_ of
+        Axis ->
+            Array.get origin.index frame.axes
                 |> Maybe.withDefault 0
-                |> reverseAxis isReverse
+                |> reverseAxis origin.isReverse
                 |> axisToButton
 
-        Just (Origin isReverse Button index) ->
-            Array.get index frame.buttons
+        Button ->
+            Array.get origin.index frame.buttons
                 |> Maybe.map Tuple.first
                 |> Maybe.withDefault False
 
 
-getAsFloat : Digital -> Mapping -> GamepadFrame -> Float
-getAsFloat destination mapping frame =
-    case mappingToOrigin destination mapping of
-        Nothing ->
-            0
+getAsBool : Digital -> Mapping -> GamepadFrame -> Bool
+getAsBool destination mapping frame =
+    mapping
+        |> mappingToOrigins destination
+        |> List.any (originToBool frame)
 
-        Just (Origin isReverse Axis index) ->
-            Array.get index frame.axes
+
+
+-- Gamepad frame to float
+
+
+originToFloat : GamepadFrame -> Origin -> Float
+originToFloat frame origin =
+    case origin.type_ of
+        Axis ->
+            Array.get origin.index frame.axes
                 |> Maybe.withDefault 0
-                |> reverseAxis isReverse
+                |> reverseAxis origin.isReverse
 
-        Just (Origin isReverse Button index) ->
-            Array.get index frame.buttons
+        Button ->
+            Array.get origin.index frame.buttons
                 |> Maybe.map Tuple.second
                 |> Maybe.withDefault 0
+
+
+getAsFloat : Digital -> Mapping -> GamepadFrame -> Float
+getAsFloat destination mapping frame =
+    mapping
+        |> mappingToOrigins destination
+        |> List.map (originToFloat frame)
+        |> List.foldl (+) 0
 
 
 getAxis : Digital -> Digital -> Mapping -> GamepadFrame -> Float
