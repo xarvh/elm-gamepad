@@ -89,3 +89,13 @@ boolToNumber bool =
         1
     else
         0
+
+
+axisToButton : Float -> Bool
+axisToButton n =
+    n > 0.6
+
+
+buttonToAxis : Bool -> Float
+buttonToAxis =
+    boolToNumber

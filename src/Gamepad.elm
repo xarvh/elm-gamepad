@@ -52,7 +52,9 @@ import Gamepad.Private as Private
         , Mapping
         , Origin
         , OriginType(..)
+        , axisToButton
         , boolToNumber
+        , buttonToAxis
         )
 import List.Extra
 import Time
@@ -347,16 +349,6 @@ mappingToOrigins destination mapping =
 
         Just origins ->
             origins
-
-
-axisToButton : Float -> Bool
-axisToButton n =
-    n > 0.6
-
-
-buttonToAxis : Bool -> Float
-buttonToAxis =
-    boolToNumber
 
 
 

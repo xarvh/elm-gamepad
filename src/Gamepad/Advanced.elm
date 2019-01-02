@@ -81,6 +81,7 @@ import Gamepad.Private as Private
         , Mapping
         , Origin
         , OriginType(..)
+        , axisToButton
         , boolToNumber
         )
 import Gamepad.Translations exposing (Translation)
@@ -616,14 +617,15 @@ viewManual model manual translation =
                     axes =
                         gamepadFrame.axes
                             |> Array.toList
-                            |> List.indexedMap (viewAxis model.controls manual.mapping)
+                            |> List.map (\value -> ( axisToButton value, value ))
 
                     buttons =
                         gamepadFrame.buttons
                             |> Array.toList
-                            |> List.indexedMap (viewButtons model.controls manual.mapping)
                 in
-                ul [] (axes ++ buttons)
+                (axes ++ buttons)
+                    |> List.indexedMap (viewValueAndState model.controls manual.mapping)
+                    |> ul []
         , div
             []
             [ button
@@ -636,14 +638,42 @@ viewManual model manual translation =
         ]
 
 
-viewAxis : List Control -> Mapping -> Int -> Float -> Html Msg
-viewAxis controls mapping index value =
-    text "TODO axis"
+viewValueAndState : List Control -> Mapping -> Int -> ( Bool, Float ) -> Html Msg
+viewValueAndState controls mapping index ( state, value ) =
+    tr
+        []
+        [ text ""
 
+        -- As float
+        , td
+            []
+            [ text <| String.fromFloat value ]
 
-viewButtons : List Control -> Mapping -> Int -> ( Bool, Float ) -> Html Msg
-viewButtons controls mapping index value =
-    text "TODO button"
+        -- As bool
+        , td
+            []
+            [ if state then
+                text "On"
+              else
+                text "Off"
+            ]
+
+        -- direct mapping
+        , td
+            []
+            [ select
+                []
+                []
+            ]
+
+        -- reverse mapping
+        , td
+            []
+            [ select
+                []
+                []
+            ]
+        ]
 
 
 viewAutomatic : List Control -> ModelAutomatic -> Translation -> Html Msg
