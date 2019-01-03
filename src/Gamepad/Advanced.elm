@@ -640,6 +640,15 @@ cssStyleGauge =
 .elm-gamepad-advanced-status-on {
   background-color: black;
 }
+
+.elm-gamepad-advanced-select-on {
+  border: 2px solid black;
+}
+
+.elm-gamepad-advanced-select-off {
+  border: 2px solid white;
+  transition: border-color 2s ease-in-out;
+}
 """
 
 
@@ -692,11 +701,12 @@ viewManual model manual translation =
                     axes =
                         gamepadFrame.axes
                             |> Array.toList
-                            |> List.map (\value -> ( axisToButton value, value ))
+                            |> List.map axisToTriplet
 
                     buttons =
                         gamepadFrame.buttons
                             |> Array.toList
+                            |> List.map buttonToTriplet
                 in
                 (axes ++ buttons)
                     |> List.indexedMap (viewValueAndState model.controls manual.mapping)
@@ -713,32 +723,57 @@ viewManual model manual translation =
         ]
 
 
-viewValueAndState : List Control -> Mapping -> Int -> ( Bool, Float ) -> Html Msg
-viewValueAndState controls mapping index ( state, value ) =
+axisToTriplet : Float -> ( Bool, Float, Bool )
+axisToTriplet value =
+    ( axisToButton -value
+    , value
+    , axisToButton value
+    )
+
+
+buttonToTriplet : ( Bool, Float ) -> ( Bool, Float, Bool )
+buttonToTriplet ( status, value ) =
+    ( False
+    , value
+    , status
+    )
+
+
+viewValueAndState : List Control -> Mapping -> Int -> ( Bool, Float, Bool ) -> Html Msg
+viewValueAndState controls mapping index ( reverseStatus, value, directStatus ) =
+    let
+        statusClass status =
+            if status then
+                class "elm-gamepad-advanced-select-on"
+            else
+                class "elm-gamepad-advanced-select-off"
+
+        options =
+            controls
+                |> List.map (\( n, d ) -> option [] [ text n ])
+                |> (::) (option [] [ text "-" ])
+    in
     tr
         []
         [ text ""
-
-        -- As float
-        , td [] [ linearGauge value ]
-
-        -- As bool
-        , td [] [ statusLight state ]
 
         -- direct mapping
         , td
             []
             [ select
-                []
-                []
+                [ statusClass reverseStatus ]
+                options
             ]
+
+        -- As float
+        , td [] [ linearGauge value ]
 
         -- reverse mapping
         , td
             []
             [ select
-                []
-                []
+                [ statusClass directStatus ]
+                options
             ]
         ]
 
