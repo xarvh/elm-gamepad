@@ -597,7 +597,82 @@ cssStyle =
         , ".elm-gamepad-gamepad-index::after { content: ': '; }"
         , ".elm-gamepad-remapping-skip { margin-top: 0.5em; }"
         , ".elm-gamepad-remapping-cancel { margin-top: 0.5em; }"
+        , cssStyleGauge
         ]
+
+
+cssStyleGauge =
+    """
+.elm-gamepad-advanced-gauge {
+  position: relative;
+  width: 100px;
+  height: 20px;
+  border: 2px black solid;
+  overflow: hidden;
+}
+
+.elm-gamepad-advanced-gauge-hand {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 16px black solid;
+}
+
+.elm-gamepad-advanced-gauge-zero {
+  position: absolute;
+  bottom: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 6px;
+  background-color: black;
+}
+
+.elm-gamepad-advanced-status {
+  width: 20px;
+  height: 20px;
+  border: 2px black solid;
+  background-color: white;
+}
+
+.elm-gamepad-advanced-status-on {
+  background-color: black;
+}
+"""
+
+
+linearGauge : Float -> Html msg
+linearGauge value =
+    let
+        handOffset =
+            (1 + clamp -1 1 value) * 50
+    in
+    div
+        [ class "elm-gamepad-advanced-gauge" ]
+        [ div
+            [ class "elm-gamepad-advanced-gauge-hand"
+            , style "left" ("calc(" ++ String.fromFloat handOffset ++ "% - 4px)")
+            ]
+            []
+        , div
+            [ class "elm-gamepad-advanced-gauge-zero" ]
+            []
+        ]
+
+
+statusLight : Bool -> Html msg
+statusLight status =
+    div
+        [ class "elm-gamepad-advanced-status"
+        , class <|
+            if status then
+                "elm-gamepad-advanced-status-on"
+            else
+                ""
+        ]
+        []
 
 
 viewManual : WrappedModel -> ModelManual -> Translation -> Html Msg
@@ -625,7 +700,7 @@ viewManual model manual translation =
                 in
                 (axes ++ buttons)
                     |> List.indexedMap (viewValueAndState model.controls manual.mapping)
-                    |> ul []
+                    |> table []
         , div
             []
             [ button
@@ -645,18 +720,10 @@ viewValueAndState controls mapping index ( state, value ) =
         [ text ""
 
         -- As float
-        , td
-            []
-            [ text <| String.fromFloat value ]
+        , td [] [ linearGauge value ]
 
         -- As bool
-        , td
-            []
-            [ if state then
-                text "On"
-              else
-                text "Off"
-            ]
+        , td [] [ statusLight state ]
 
         -- direct mapping
         , td
@@ -719,7 +786,7 @@ viewAutomatic controls automatic translation =
                 , div [ class "elm-gamepad-remapping-advanced" ]
                     [ button
                         [ onClick OnAdvanced ]
-                        [ text "TODO" ]
+                        [ text "TODO Advanced" ]
                     ]
                 ]
 
