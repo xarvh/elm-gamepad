@@ -207,6 +207,17 @@ to see if there is any gamepad that can be configured.
 getGamepads : List ( String, Digital ) -> UserMappings -> Blob -> List Gamepad
 getGamepads controls userMappings ( currentBlobFrame, previousBlobFrame, env ) =
     let
+        {-
+           Only controls explicitly requested by the application will be provided.
+           Anything that is not in `controls` will yield a neutral value.
+
+           Say the devs forget to pass one of the necessary controls to the
+           remapping tool.
+           If they test with a Standard Gamepad, they'll never find out because
+           they didn't need to configure.
+           This way the control will *never* work, even with a Standard Gamepad,
+           and the problem will be found in testing.
+        -}
         isConfigured : String -> a -> Bool
         isConfigured digitalAsString origin =
             List.any (\( name, digital ) -> digitalToString digital == digitalAsString) controls
@@ -702,23 +713,25 @@ viewManual model manual translation =
                         gamepadFrame.axes
                             |> Array.toList
                             |> List.map axisToTriplet
+                            |> List.indexedMap (viewValueAndState model.controls manual.mapping Axis)
 
                     buttons =
                         gamepadFrame.buttons
                             |> Array.toList
                             |> List.map buttonToTriplet
+                            |> List.indexedMap (viewValueAndState model.controls manual.mapping Button)
                 in
-                (axes ++ buttons)
-                    |> List.indexedMap (viewValueAndState model.controls manual.mapping)
-                    |> table []
+                table [] (axes ++ buttons)
         , div
             []
             [ button
                 []
                 [ text "TODO Accept" ]
-            , button
-                []
-                [ text "TODO Cancel" ]
+            , div [ class "elm-gamepad-remapping-cancel" ]
+                [ button
+                    [ onClick OnCancel ]
+                    [ text translation.cancelRemapping ]
+                ]
             ]
         ]
 
@@ -739,20 +752,32 @@ buttonToTriplet ( status, value ) =
     )
 
 
-viewValueAndState : List Control -> Mapping -> Int -> ( Bool, Float, Bool ) -> Html Msg
-viewValueAndState controls mapping index ( reverseStatus, value, directStatus ) =
-    let
-        statusClass status =
-            if status then
-                class "elm-gamepad-advanced-select-on"
-            else
-                class "elm-gamepad-advanced-select-off"
+originToControl : List Control -> Mapping -> Origin -> Maybe Control
+originToControl controls mapping origin =
+    Nothing
 
-        options =
-            controls
-                |> List.map (\( n, d ) -> option [] [ text n ])
-                |> (::) (option [] [ text "-" ])
+
+selectControl : List Control -> Mapping -> Origin -> Bool -> Html Msg
+selectControl controls mapping origin triggered =
+    let
+        viewOption ( controlName, controlDigital ) =
+            option
+                [ value <| digitalToString controlDigital ]
+                [ text controlName ]
     in
+    controls
+        |> List.map viewOption
+        |> (::) (option [] [ text "-" ])
+        |> select
+            [ if triggered then
+                class "elm-gamepad-advanced-select-on"
+              else
+                class "elm-gamepad-advanced-select-off"
+            ]
+
+
+viewValueAndState : List Control -> Mapping -> OriginType -> Int -> ( Bool, Float, Bool ) -> Html Msg
+viewValueAndState controls mapping originType index ( reverseStatus, value, directStatus ) =
     tr
         []
         [ text ""
@@ -760,9 +785,14 @@ viewValueAndState controls mapping index ( reverseStatus, value, directStatus ) 
         -- direct mapping
         , td
             []
-            [ select
-                [ statusClass reverseStatus ]
-                options
+            [ selectControl
+                controls
+                mapping
+                { isReverse = True
+                , type_ = originType
+                , index = index
+                }
+                reverseStatus
             ]
 
         -- As float
@@ -771,9 +801,14 @@ viewValueAndState controls mapping index ( reverseStatus, value, directStatus ) 
         -- reverse mapping
         , td
             []
-            [ select
-                [ statusClass directStatus ]
-                options
+            [ selectControl
+                controls
+                mapping
+                { isReverse = False
+                , type_ = originType
+                , index = index
+                }
+                directStatus
             ]
         ]
 
