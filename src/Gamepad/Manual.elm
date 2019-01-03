@@ -291,10 +291,13 @@ animationFrameTimestamp ( currentFrame, previousFrame, env ) =
 {-| [The Elm Architecture](https://guide.elm-lang.org/architecture/) `Msg` type
 -}
 type Msg
-    = OnGamepad Blob
+    = Noop
+    | OnGamepad Blob
     | OnStartRemapping String Int
-    | OnAutomatic Gamepad.Automatic.Msg
-    | OnManual Gamepad.Manual.Msg
+    | OnSkip Digital
+    | OnCancel
+    | OnAdvanced
+    | OnSelect Origin String
 
 
 
@@ -315,12 +318,66 @@ type alias WrappedModel =
 
 
 type Remapping
-    = RemappingAutomatic Gamepad.Automatic.Model
-    | RemappingManual Gamepad.Manual.Model
+    = RemappingAutomatic ModelAutomatic
+    | RemappingManual ModelManual
+
+
+type alias ModelAutomatic =
+    { id : String
+    , index : Int
+    , pairs : List ( Origin, Digital )
+    , skipped : List Digital
+    , waitingFor : WaitingFor
+    }
+
+
+type alias ModelManual =
+    { id : String
+    , index : Int
+    , mapping : Mapping
+    }
+
+
+initAutomatic : String -> Int -> Remapping
+initAutomatic id index =
+    { id = id
+    , index = index
+    , pairs = []
+    , skipped = []
+    , waitingFor = AllButtonsUp
+    }
+        |> RemappingAutomatic
+
+
+automaticToManual : ModelAutomatic -> ModelManual
+automaticToManual automatic =
+    { id = automatic.id
+    , index = automatic.index
+
+    -- TODO: if automatic.pairs is empty, use current mapping
+    , mapping = pairsToMapping Gamepad.digitalToString automatic.pairs
+    }
 
 
 type alias Control =
     ( String, Digital )
+
+
+type WaitingFor
+    = AllButtonsUp
+    | SomeButtonDown
+
+
+nextUnmappedAction : List Control -> ModelAutomatic -> Maybe Control
+nextUnmappedAction controls remapping =
+    let
+        mapped =
+            List.map Tuple.second remapping.pairs ++ remapping.skipped
+
+        needsMapping ( name, destination ) =
+            List.all ((/=) destination) mapped
+    in
+    List.Extra.find needsMapping controls
 
 
 
@@ -371,31 +428,59 @@ update : Msg -> Model -> ( Model, Maybe (UserMappings -> UserMappings) )
 update msg (Model model) =
     Tuple.mapFirst Model <|
         case msg of
+            Noop ->
+                noCmd model
+
             OnGamepad blob ->
                 updateOnGamepad { model | blob = blob }
 
             OnStartRemapping id index ->
                 noCmd { model | maybeRemapping = Just (initAutomatic id index) }
 
-            OnAutomatic nestedMsg ->
-                case maybeRemapping of
+            OnCancel ->
+                noCmd { model | maybeRemapping = Nothing }
+
+            OnAdvanced ->
+                case model.maybeRemapping of
                     Just (RemappingAutomatic automatic) ->
-                        noCmd <|
-                            case Gamepad.Automatic.update nestedMsg automatic of
-                                Gamepad.Automatic.Continue updatedAutomatic ->
-                                    { model | maybeRemapping = Just <| RemappingAutomatic updatedAutomatic }
+                        noCmd
+                            { model
+                                | maybeRemapping =
+                                    automaticToManual automatic
+                                        |> RemappingManual
+                                        |> Just
+                            }
 
-                                Gamepad.Automatic.Cancel ->
-                                    { model | maybeRemapping = Nothing }
+                    _ ->
+                        noCmd model
 
-                                Gamepad.Automatic.SwitchToManual id index ->
-                                    { model | maybeRemapping = Just <| RemappingAutomatic <| Gamepad.Manual.init id index }
+            OnSelect origin value ->
+                let
+                    q =
+                        Debug.log "" ( origin, value )
+                in
+                noCmd model
 
-            OnManual nestedMsg ->
-                case maybeRemapping of
-                    Just (RemappingManual manual) ->
-                        Gamepad.Manual.update nestedMsg manual
-                            |> Tuple.mapFirst (\maybeManual -> { model | maybeRemapping = Maybe.map RemappingManual maybeManual })
+            OnSkip digital ->
+                case model.maybeRemapping of
+                    Nothing ->
+                        noCmd model
+
+                    Just (RemappingManual remapping) ->
+                        noCmd model
+
+                    Just (RemappingAutomatic remapping) ->
+                        let
+                            ( maybeRemapping, maybeUpdate ) =
+                                { remapping | skipped = digital :: remapping.skipped }
+                                    |> maybeEndRemapping model.controls
+                        in
+                        ( { model | maybeRemapping = Maybe.map RemappingAutomatic maybeRemapping }, maybeUpdate )
+
+
+noCmd : a -> ( a, Maybe (UserMappings -> UserMappings) )
+noCmd model =
+    ( model, Nothing )
 
 
 updateOnGamepad : WrappedModel -> ( WrappedModel, Maybe (UserMappings -> UserMappings) )
@@ -409,13 +494,70 @@ updateOnGamepad model =
             noCmd model
 
         Just (RemappingAutomatic remapping) ->
-            Gamepad.Automatic.updateOnGamepad model.controls model.blob remapping
-                |> Tuple.mapFirst (\maybeAutomatic -> { model | maybeRemapping = Maybe.map RemappingAutomatic maybeAutomatic })
+            updateAutomatic remapping model
+                |> Tuple.mapFirst (\r -> { model | maybeRemapping = Maybe.map RemappingAutomatic r })
 
 
-noCmd : a -> ( a, Maybe (UserMappings -> UserMappings) )
-noCmd model =
-    ( model, Nothing )
+updateAutomatic : ModelAutomatic -> WrappedModel -> ( Maybe ModelAutomatic, Maybe (UserMappings -> UserMappings) )
+updateAutomatic remapping model =
+    case ( remapping.waitingFor, estimateOrigin model.blob remapping.index ) of
+        ( AllButtonsUp, Nothing ) ->
+            noCmd <| Just <| { remapping | waitingFor = SomeButtonDown }
+
+        ( SomeButtonDown, Just origin ) ->
+            case nextUnmappedAction model.controls remapping of
+                Nothing ->
+                    -- close remapper
+                    noCmd Nothing
+
+                Just ( name, destination ) ->
+                    { remapping | waitingFor = AllButtonsUp }
+                        |> insertPair origin destination
+                        |> maybeEndRemapping model.controls
+
+        _ ->
+            noCmd <| Just <| remapping
+
+
+maybeEndRemapping : List Control -> ModelAutomatic -> ( Maybe ModelAutomatic, Maybe (UserMappings -> UserMappings) )
+maybeEndRemapping controls remapping =
+    if nextUnmappedAction controls remapping /= Nothing then
+        ( Just remapping, Nothing )
+    else
+        -- All controls have been mapped/skipped
+        let
+            updateFunction =
+                pairsToUpdateUserMappings remapping.id remapping.index remapping.pairs
+
+            -- If the gamepad is disabled, we can't wait for the user to press a
+            -- button, so instead we close the remapper immediately.
+            gamepadIsDisabled =
+                remapping.pairs == []
+
+            maybeRemapping =
+                if gamepadIsDisabled then
+                    Nothing
+                else
+                    Just remapping
+        in
+        ( maybeRemapping, Just updateFunction )
+
+
+insertPair : Origin -> Digital -> ModelAutomatic -> ModelAutomatic
+insertPair origin destination remapping =
+    { remapping | pairs = ( origin, destination ) :: remapping.pairs }
+
+
+pairsToUpdateUserMappings : String -> Int -> List ( Origin, Digital ) -> UserMappings -> UserMappings
+pairsToUpdateUserMappings id index pairs (UserMappings database) =
+    let
+        mapping =
+            pairsToMapping Gamepad.digitalToString pairs
+    in
+    UserMappings
+        { byIndexAndId = Dict.insert ( index, id ) mapping database.byIndexAndId
+        , byId = Dict.insert id mapping database.byId
+        }
 
 
 
@@ -474,7 +616,273 @@ cssStyle =
         , ".elm-gamepad-gamepad-index::after { content: ': '; }"
         , ".elm-gamepad-remapping-skip { margin-top: 0.5em; }"
         , ".elm-gamepad-remapping-cancel { margin-top: 0.5em; }"
+        , cssStyleGauge
         ]
+
+
+cssStyleGauge =
+    """
+.elm-gamepad-advanced-gauge {
+  position: relative;
+  width: 100px;
+  height: 20px;
+  border: 2px black solid;
+  overflow: hidden;
+}
+
+.elm-gamepad-advanced-gauge-hand {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 16px black solid;
+}
+
+.elm-gamepad-advanced-gauge-zero {
+  position: absolute;
+  bottom: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 6px;
+  background-color: black;
+}
+
+.elm-gamepad-advanced-status {
+  width: 20px;
+  height: 20px;
+  border: 2px black solid;
+  background-color: white;
+}
+
+.elm-gamepad-advanced-status-on {
+  background-color: black;
+}
+
+.elm-gamepad-advanced-select-on {
+  border: 2px solid black;
+}
+
+.elm-gamepad-advanced-select-off {
+  border: 2px solid white;
+  transition: border-color 2s ease-in-out;
+}
+"""
+
+
+linearGauge : Float -> Html msg
+linearGauge value =
+    let
+        handOffset =
+            (1 + clamp -1 1 value) * 50
+    in
+    div
+        [ class "elm-gamepad-advanced-gauge" ]
+        [ div
+            [ class "elm-gamepad-advanced-gauge-hand"
+            , style "left" ("calc(" ++ String.fromFloat handOffset ++ "% - 4px)")
+            ]
+            []
+        , div
+            [ class "elm-gamepad-advanced-gauge-zero" ]
+            []
+        ]
+
+
+statusLight : Bool -> Html msg
+statusLight status =
+    div
+        [ class "elm-gamepad-advanced-status"
+        , class <|
+            if status then
+                "elm-gamepad-advanced-status-on"
+            else
+                ""
+        ]
+        []
+
+
+viewManual : WrappedModel -> ModelManual -> Translation -> Html Msg
+viewManual model manual translation =
+    let
+        ( currentBlobFrame, previousBlobFrame, enc ) =
+            model.blob
+    in
+    div
+        []
+        [ case List.Extra.find (\g -> g.index == manual.index) currentBlobFrame.gamepads of
+            Nothing ->
+                text "TODO disconnected"
+
+            Just gamepadFrame ->
+                let
+                    axes =
+                        gamepadFrame.axes
+                            |> Array.toList
+                            |> List.map axisToTriplet
+                            |> List.indexedMap (viewValueAndState model.controls manual.mapping Axis)
+
+                    buttons =
+                        gamepadFrame.buttons
+                            |> Array.toList
+                            |> List.map buttonToTriplet
+                            |> List.indexedMap (viewValueAndState model.controls manual.mapping Button)
+                in
+                table [] (axes ++ buttons)
+        , div
+            []
+            [ button
+                []
+                [ text "TODO Accept" ]
+            , div [ class "elm-gamepad-remapping-cancel" ]
+                [ button
+                    [ onClick OnCancel ]
+                    [ text translation.cancelRemapping ]
+                ]
+            ]
+        ]
+
+
+axisToTriplet : Float -> ( Bool, Float, Bool )
+axisToTriplet value =
+    ( axisToButton -value
+    , value
+    , axisToButton value
+    )
+
+
+buttonToTriplet : ( Bool, Float ) -> ( Bool, Float, Bool )
+buttonToTriplet ( status, value ) =
+    ( False
+    , value
+    , status
+    )
+
+
+originToControl : List Control -> Mapping -> Origin -> Maybe Control
+originToControl controls mapping origin =
+    let
+        usesTargetOrigin : ( String, List Origin ) -> Bool
+        usesTargetOrigin ( digitalAsString, origins ) =
+            List.any ((==) origin) origins
+
+        findControl : String -> Maybe Control
+        findControl digitalAsString =
+            List.Extra.find (\( controlName, controlDigital ) -> digitalToString controlDigital == digitalAsString) controls
+    in
+    mapping
+        |> Dict.toList
+        |> List.Extra.find usesTargetOrigin
+        |> Maybe.map Tuple.first
+        |> Maybe.andThen findControl
+
+
+selectControl : List Control -> Mapping -> Origin -> Bool -> Html Msg
+selectControl controls mapping origin triggered =
+    let
+        viewOption ( controlName, controlDigital ) =
+            option
+                [ value <| digitalToString controlDigital
+                , selected <| originToControl controls mapping origin == Just ( controlName, controlDigital )
+                ]
+                [ text controlName ]
+    in
+    controls
+        |> List.map viewOption
+        |> (::) (option [] [ text " " ])
+        |> select
+            [ if triggered then
+                class "elm-gamepad-advanced-select-on"
+              else
+                class "elm-gamepad-advanced-select-off"
+            , Html.Events.on "change" <| Json.Decode.map (OnSelect origin) Html.Events.targetValue
+            ]
+
+
+viewValueAndState : List Control -> Mapping -> OriginType -> Int -> ( Bool, Float, Bool ) -> Html Msg
+viewValueAndState controls mapping originType index ( reverseStatus, value, directStatus ) =
+    tr
+        []
+        [ text ""
+
+        -- direct mapping
+        , td
+            []
+            [ selectControl
+                controls
+                mapping
+                { isReverse = True
+                , type_ = originType
+                , index = index
+                }
+                reverseStatus
+            ]
+
+        -- As float
+        , td [] [ linearGauge value ]
+
+        -- reverse mapping
+        , td
+            []
+            [ selectControl
+                controls
+                mapping
+                { isReverse = False
+                , type_ = originType
+                , index = index
+                }
+                directStatus
+            ]
+        ]
+
+
+viewAutomatic : List Control -> ModelAutomatic -> Translation -> Html Msg
+viewAutomatic controls automatic translation =
+    let
+        statusClass =
+            class "elm-gamepad-remapping-tellsUserWhatIsHappening"
+
+        instructionClass =
+            class "elm-gamepad-remapping-tellsUserWhatToDo"
+    in
+    case nextUnmappedAction controls automatic of
+        Nothing ->
+            div
+                [ class "elm-gamepad-remapping-complete" ]
+                [ div
+                    [ statusClass ]
+                    [ text <| translation.remappingGamepadComplete automatic.index ]
+                , div
+                    [ instructionClass ]
+                    [ text translation.pressAnyButtonToGoBack ]
+                ]
+
+        Just ( actionName, destination ) ->
+            div
+                [ class "elm-gamepad-remapping" ]
+                [ div [ statusClass ]
+                    [ text <| translation.remappingGamepad automatic.index ]
+                , div [ instructionClass ]
+                    [ text translation.press ]
+                , div [ class "elm-gamepad-remapping-action-name" ]
+                    [ text actionName ]
+                , div [ class "elm-gamepad-remapping-skip" ]
+                    [ button
+                        [ onClick (OnSkip destination) ]
+                        [ text translation.skipThisAction ]
+                    ]
+                , div [ class "elm-gamepad-remapping-cancel" ]
+                    [ button
+                        [ onClick OnCancel ]
+                        [ text translation.cancelRemapping ]
+                    ]
+                , div [ class "elm-gamepad-remapping-advanced" ]
+                    [ button
+                        [ onClick OnAdvanced ]
+                        [ text "TODO Advanced" ]
+                    ]
+                ]
 
 
 findIndex : Int -> List Gamepad -> Maybe Gamepad
