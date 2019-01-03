@@ -297,6 +297,7 @@ type Msg
     | OnSkip Digital
     | OnCancel
     | OnAdvanced
+    | OnSelect Origin String
 
 
 
@@ -452,6 +453,13 @@ update msg (Model model) =
 
                     _ ->
                         noCmd model
+
+            OnSelect origin value ->
+                let
+                    q =
+                        Debug.log "" ( origin, value )
+                in
+                noCmd model
 
             OnSkip digital ->
                 case model.maybeRemapping of
@@ -754,7 +762,20 @@ buttonToTriplet ( status, value ) =
 
 originToControl : List Control -> Mapping -> Origin -> Maybe Control
 originToControl controls mapping origin =
-    Nothing
+    let
+        usesTargetOrigin : ( String, List Origin ) -> Bool
+        usesTargetOrigin ( digitalAsString, origins ) =
+            List.any ((==) origin) origins
+
+        findControl : String -> Maybe Control
+        findControl digitalAsString =
+            List.Extra.find (\( controlName, controlDigital ) -> digitalToString controlDigital == digitalAsString) controls
+    in
+    mapping
+        |> Dict.toList
+        |> List.Extra.find usesTargetOrigin
+        |> Maybe.map Tuple.first
+        |> Maybe.andThen findControl
 
 
 selectControl : List Control -> Mapping -> Origin -> Bool -> Html Msg
@@ -762,17 +783,20 @@ selectControl controls mapping origin triggered =
     let
         viewOption ( controlName, controlDigital ) =
             option
-                [ value <| digitalToString controlDigital ]
+                [ value <| digitalToString controlDigital
+                , selected <| originToControl controls mapping origin == Just ( controlName, controlDigital )
+                ]
                 [ text controlName ]
     in
     controls
         |> List.map viewOption
-        |> (::) (option [] [ text "-" ])
+        |> (::) (option [] [ text " " ])
         |> select
             [ if triggered then
                 class "elm-gamepad-advanced-select-on"
               else
                 class "elm-gamepad-advanced-select-off"
+            , Html.Events.on "change" <| Json.Decode.map (OnSelect origin) Html.Events.targetValue
             ]
 
 
