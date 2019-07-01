@@ -1,4 +1,4 @@
-port module Main exposing (..)
+module Main exposing (..)
 
 import Array exposing (Array)
 import Browser
@@ -37,9 +37,7 @@ height =
 
 
 -- GAMEPAD API
-
-
-port onBlob : (Blob -> msg) -> Sub msg
+-- port onBlob : (Blob -> msg) -> Sub msg
 
 
 type alias Blob =
@@ -373,22 +371,10 @@ insert ( digital, signalId ) list =
 
 --
 
-{-
-YOU CANNOT SELECT DIGITALS!!!
-
-* Unmapped Signal when nothing is selected: normal
-* Unmapped Signal when another Signal is selected: lowlight
-* Mapped Signal : text replaced with green checkmark?
-* Mapped Signal when another Signal is selected: lowlight?
-
-* Unmapped Digital: lowlighted, no indicator, bounces if a Signal is selected, red question mark?
-* Mapped Digital: green?
--}
-
 
 type alias GaugeArgs =
-    { maybeIndicator : Maybe Float
-    , isBlackAndWhite : Bool
+    { maybeIndicator : Maybe ( Float, String )
+    , color : String
     , text : String
     }
 
@@ -396,6 +382,9 @@ type alias GaugeArgs =
 gauge : GaugeArgs -> Svg msg
 gauge args =
     let
+        thickness =
+            "0.04"
+
         startAngle =
             -120
 
@@ -413,15 +402,23 @@ gauge args =
     in
     svg
         [ viewBox "-1 -1 2 2"
-        , width "300px"
-        , s "border" "1px solid black"
+        , width "60px"
+
+        --, s "border" "1px solid black"
         ]
         [ List.range 0 (ticks - 1)
-            |> List.map (tickAngle >> viewTick)
+            |> List.map (tickAngle >> viewTick args.color thickness)
             |> g []
+        , circle
+            [ r "0.98"
+            , fill "none"
+            , stroke args.color
+            , strokeWidth thickness
+            ]
+            []
         , case args.maybeIndicator of
-            Just value ->
-                value |> indicatorAngle |> viewIndicator
+            Just ( value, c ) ->
+                value |> indicatorAngle |> viewIndicator c
 
             Nothing ->
                 text ""
@@ -436,42 +433,73 @@ gauge args =
             , lengthAdjust "spacingAndGlyphs"
             , fontSize "0.3"
             , textAnchor "middle"
+            , fill args.color
+            , s "font-family" "Sans-Serif"
             ]
             [ text args.text ]
         ]
 
 
-viewIndicator angle =
+viewIndicator : String -> Float -> Svg msg
+viewIndicator color angle =
     rect
-        [ transform <| "rotate(" ++ String.fromFloat angle ++ ") translate(0, -0.8)"
+        [ transform <| "rotate(" ++ String.fromFloat angle ++ ") translate(0, -0.7)"
         , x "-0.02"
         , width "0.04"
         , y "-0.15"
         , height "0.3"
-        , fill "black"
+        , fill color
         ]
         []
 
 
-viewTick angle =
+viewTick : String -> String -> Float -> Svg msg
+viewTick color thickness angle =
     rect
-        [ transform <| "rotate(" ++ String.fromFloat angle ++ ") translate(0, -0.85)"
+        [ transform <| "rotate(" ++ String.fromFloat angle ++ ") translate(0, -0.8)"
         , x "-0.01"
-        , width "0.02"
+        , width thickness
         , y "-0.1"
         , height "0.2"
-        , fill "gray"
+        , fill color
         ]
         []
 
 
+
+{-
+   YOU CANNOT SELECT DIGITALS!!!
+
+
+   * Mapped Digital: green?
+
+
+
+   - color schema
+     normal
+     dimmed
+     green
+
+
+-}
+
+
+viewGauges : List (Html msg)
 viewGauges =
     [ div
         []
-        [ gauge { maybeIndicator = Just -1,  isBlackAndWhite = False, text = "Axis 1" }
-        , gauge { maybeIndicator = Just 0,  isBlackAndWhite = False, text = "Button 10" }
-        , gauge { maybeIndicator = Just 1,  isBlackAndWhite = False, text = "" }
-        , gauge { maybeIndicator = Nothing,  isBlackAndWhite = False, text = "Button 99" }
+        -- Unmapped Signal when nothing is selected: normal
+        [ gauge { maybeIndicator = Just ( -1, "red" ), text = "Axis 1", color = "black" }
+
+        -- Unmapped Signal when another Signal is selected: dimmed
+        -- Mapped Signal when another Signal is selected: also dimmed?
+        , gauge { maybeIndicator = Just ( 0, "gray" ), text = "Button 10", color = "lightgray" }
+
+        -- Mapped Signal : text replaced with green checkmark?
+        , gauge { maybeIndicator = Just ( 1, "green" ), text = "✔", color = "green" }
+
+        -- Unmapped Digital: dimmed, no indicator, bounces if a Signal is selected, red question mark?
+        , gauge { maybeIndicator = Nothing, text = "?", color = "red" }
         ]
     ]
 
@@ -533,5 +561,5 @@ main =
         { init = \flags -> ( init, Cmd.none )
         , update = \msg model -> ( update msg model, Cmd.none )
         , view = \model -> { title = "meh", body = viewGauges }
-        , subscriptions = \model -> onBlob OnAnimationFrame
+        , subscriptions = \model -> Sub.none --onBlob OnAnimationFrame
         }
