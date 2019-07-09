@@ -2,6 +2,8 @@ port module Main exposing (..)
 
 import Array exposing (Array)
 import Browser
+import Gamepad exposing (Digital(..))
+import Gamepad.Private exposing (Blob, BlobFrame, GamepadFrame)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events
@@ -38,62 +40,8 @@ height =
 
 -- GAMEPAD API
 
+
 port onBlob : (Blob -> msg) -> Sub msg
-
-
-type alias Blob =
-    ( BlobFrame, BlobFrame, Environment )
-
-
-type alias BlobFrame =
-    { gamepads : List GamepadFrame
-    , timestamp : Float
-    }
-
-
-type alias GamepadFrame =
-    { axes : Array Float
-    , buttons : Array ( Bool, Float )
-    , id : String
-    , index : Int
-    , mapping : String
-    }
-
-
-type alias Environment =
-    { userMappings : String
-    , languages : List String
-    }
-
-
-{-| TODO rename to InputId?
--}
-type Digital
-    = A
-    | B
-    | X
-    | Y
-    | Start
-    | Back
-    | Home
-    | LeftStickPress
-    | LeftStickUp
-    | LeftStickDown
-    | LeftStickLeft
-    | LeftStickRight
-    | LeftTrigger
-    | LeftBumper
-    | RightStickPress
-    | RightStickUp
-    | RightStickDown
-    | RightStickLeft
-    | RightStickRight
-    | RightTrigger
-    | RightBumper
-    | DpadUp
-    | DpadDown
-    | DpadLeft
-    | DpadRight
 
 
 
@@ -117,8 +65,7 @@ type GamepadMsg
 
 
 type Selection
-    = SelectedDigital Digital
-    | SelectedSignal SignalId
+    = SelectedSignal SignalId
 
 
 type alias ViewGamepadArgs =
@@ -331,7 +278,7 @@ type Msg
 update : Msg -> Model -> Model
 update msg model =
     case msg of
-        OnAnimationFrame (old, new, env) ->
+        OnAnimationFrame ( old, new, env ) ->
             model
 
         OnReset ->
