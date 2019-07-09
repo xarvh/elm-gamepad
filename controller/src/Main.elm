@@ -332,7 +332,6 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         OnAnimationFrame (old, new, env) ->
-            let q = Debug.log "" (new) in
             model
 
         OnReset ->
