@@ -1,3 +1,6 @@
 elm-stuff/
 repl-temp-*
 documentation.json
+package-lock.json
+build
+node_modules/

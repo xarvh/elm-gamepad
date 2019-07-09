@@ -1,0 +1,24 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <meta charset="UTF-8">
+
+        <link rel="stylesheet" media="screen" href="static/style.css" type="text/css"/>
+        <script type="text/javascript" src="build/app.js"></script>
+        <script type="text/javascript" src="gamepadPortMock.js"></script>
+    </head>
+    <body>
+        <div id='main'></div>
+        <script type="text/javascript">
+            var elmApp = Elm.Main.init({
+              node: document.getElementById('main'),
+              flags: {
+                config: localStorage.config || "",
+                dateNow: Date.now(),
+              }
+            });
+
+            addGamepadPort(elmApp);
+        </script>
+    </body>
+</html>
