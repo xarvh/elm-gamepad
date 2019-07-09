@@ -1,68 +1,16 @@
-function addGamepadPort(elmApp) {
-  var localStorageKey = 'elm-gamepad-user-mappings';
+(function mockGetGamepads() {
 
-
-  elmApp.ports.saveToLocalStorage && elmApp.ports.saveToLocalStorage.subscribe(function (userMappings) {
-    localStorage.setItem(localStorageKey, userMappings);
-  });
-
-
-  var environment = {
-    userMappings: localStorage[localStorageKey] || '',
-    languages: navigator.languages || [],
+  navigator.getGamepads = function getGamepadsMock() {
+    updateMockGamepads();
+    return mockGamepads;
   };
 
 
-  var previousFrame;
-  requestAnimationFrame(function () {
-    previousFrame = getFrame();
-    requestAnimationFrame(onAnimationFrame);
-  });
-
-
-  function onAnimationFrame() {
-    requestAnimationFrame(onAnimationFrame);
-    updateMockGamepads();
-
-    var currentFrame = getFrame();
-    elmApp.ports.onBlob.send([ currentFrame, previousFrame, environment ]);
-
-    previousFrame = currentFrame;
-  }
-
-
-  function getFrame() {
-    var rawGamepads = getGamepads();
-
-    var serialisedGamepads = [];
-    for (var i = 0; i < rawGamepads.length; i++) {
-      var g = rawGamepads[i];
-
-      // All browsers running under Windows 10 will sometimes throw in a zombie gamepad
-      // object, unrelated to any physical gamepad and never updated.
-      // Since this gamepad has always timestamp == 0, we use timestamp > 0 to discard it.
-      if (g && g.connected && g.timestamp > 0) serialisedGamepads.push({
-        axes: g.axes,
-        buttons: g.buttons.map(function (b) { return [ b.pressed, b.value ]; }),
-        id: g.id,
-        index: g.index + 1,
-        mapping: g.mapping,
-      });
-    }
-
-    return { gamepads: serialisedGamepads, timestamp: Date.now() };
-  }
-
-
-  // Mock stuff
   var mockGamepads = [];
   var activeGamepad = 0;
   var inputSpeedMultiplier = 1;
   var baseSpeed = 10;
   var keyStateByName = {};
-
-
-  function getGamepads() { return mockGamepads; }
 
 
   function initGamepad(index) {
@@ -152,4 +100,4 @@ function addGamepadPort(elmApp) {
     if (v < 0) return Math.min(0, v + speed);
     return 0;
   }
-}
+})();

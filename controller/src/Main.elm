@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Array exposing (Array)
 import Browser
@@ -37,7 +37,8 @@ height =
 
 
 -- GAMEPAD API
--- port onBlob : (Blob -> msg) -> Sub msg
+
+port onBlob : (Blob -> msg) -> Sub msg
 
 
 type alias Blob =
@@ -331,7 +332,7 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         OnAnimationFrame (old, new, env) ->
-            --let q = Debug.log "" (new) in
+            let q = Debug.log "" (new) in
             model
 
         OnReset ->
@@ -562,5 +563,5 @@ main =
         { init = \flags -> ( init, Cmd.none )
         , update = \msg model -> ( update msg model, Cmd.none )
         , view = \model -> { title = "meh", body = viewGauges }
-        , subscriptions = \model -> Sub.none --onBlob OnAnimationFrame
+        , subscriptions = \model -> onBlob OnAnimationFrame
         }
