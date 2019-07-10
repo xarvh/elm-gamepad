@@ -37,10 +37,6 @@ height =
     Svg.Attributes.height
 
 
-
--- GAMEPAD API
-
-
 port onBlob : (Blob -> msg) -> Sub msg
 
 
@@ -93,45 +89,19 @@ s =
     Html.Attributes.style
 
 
-userMustSelectADigital : ViewGamepadArgs -> Bool
-userMustSelectADigital args =
-    case args.maybeSelection of
-        Just (SelectedSignal _) ->
-            True
-
-        _ ->
-            False
-
-
-userMustSelectASignal : ViewGamepadArgs -> Bool
-userMustSelectASignal args =
-    case args.maybeSelection of
-        Just (SelectedDigital _) ->
-            True
-
-        _ ->
-            False
-
-
 viewDigital : ViewGamepadArgs -> (ViewGamepadArgs -> InputState) -> Digital -> String -> Html GamepadMsg
 viewDigital args get digital content =
     let
         color =
-            if args.maybeSelection == Just (SelectedDigital digital) then
-                "orange"
-            else
-                case get args of
-                    Disabled ->
-                        "grey"
+            case get args of
+                Disabled ->
+                    "grey"
 
-                    Unmapped ->
-                        "red"
+                Unmapped ->
+                    "red"
 
-                    Mapped { signalId, value } ->
-                        if userMustSelectADigital args then
-                            "orange"
-                        else
-                            "green"
+                Mapped { signalId, value } ->
+                    "green"
 
         signal =
             case get args of
@@ -142,12 +112,7 @@ viewDigital args get digital content =
                     viewSignal args Nothing 0
     in
     div
-        [ digital
-            |> SelectedDigital
-            |> Just
-            |> OnClickTarget
-            |> onClick
-        , s "border" "2px solid black"
+        [ s "border" "2px solid black"
         , s "border-color" color
         ]
         [ text content
@@ -162,10 +127,7 @@ viewSignal args maybeId value =
             0.3 + 0.7 * abs value
 
         color =
-            if userMustSelectASignal args then
-                "green"
-            else
-                "gray"
+            "gray"
     in
     div
         [ maybeId
@@ -255,12 +217,8 @@ type alias Model =
 
 init : Model
 init =
-    { map =
-        []
-    , values =
-        [ ( Button 0, 0.8 )
-        , ( Axis 0, -1 )
-        ]
+    { map = []
+    , values = []
     , maybeSelection = Nothing
     }
 
@@ -279,7 +237,22 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         OnAnimationFrame ( old, new, env ) ->
-            model
+            case new.gamepads of
+                [] ->
+                    model
+
+                gamepad :: _ ->
+                    { model
+                        | values =
+                            List.concat
+                                [ gamepad.buttons
+                                    |> Array.toList
+                                    |> List.indexedMap (\index button -> ( Button index, Tuple.second button ))
+                                , gamepad.axes
+                                    |> Array.toList
+                                    |> List.indexedMap (\index value -> ( Axis index, value ))
+                                ]
+                    }
 
         OnReset ->
             init
@@ -290,21 +263,7 @@ update msg model =
                     model
 
                 OnClickTarget target ->
-                    case ( target, model.maybeSelection ) of
-                        ( Just (SelectedDigital digital), Just (SelectedSignal signalId) ) ->
-                            { model
-                                | map = insert ( digital, signalId ) model.map
-                                , maybeSelection = Nothing
-                            }
-
-                        ( Just (SelectedSignal signalId), Just (SelectedDigital digital) ) ->
-                            { model
-                                | map = insert ( digital, signalId ) model.map
-                                , maybeSelection = Nothing
-                            }
-
-                        _ ->
-                            { model | maybeSelection = target }
+                    model
 
 
 {-| One day Dicts will be able to use union types as keys
@@ -434,7 +393,8 @@ viewTick color thickness angle =
 
 viewGauges : List (Html msg)
 viewGauges =
-    [ div
+    [
+      div
         []
         -- Unmapped Signal when nothing is selected: normal
         [ gauge { maybeIndicator = Just ( -1, "red" ), text = "Axis 1", color = "black" }
@@ -459,8 +419,7 @@ viewGauges =
 view : Model -> List (Html Msg)
 view model =
     let
-        getValue signalId =
-            model.values
+        getValue signalId = model.values
                 |> List.Extra.find (\( sid, v ) -> sid == signalId)
                 |> Maybe.map Tuple.second
                 -- Even if we lost the signal for some reason, it is still bound to the input, so we should display it
@@ -508,6 +467,6 @@ main =
     Browser.document
         { init = \flags -> ( init, Cmd.none )
         , update = \msg model -> ( update msg model, Cmd.none )
-        , view = \model -> { title = "meh", body = viewGauges }
+        , view = \model -> { title = "WIP", body = view model }
         , subscriptions = \model -> onBlob OnAnimationFrame
         }
