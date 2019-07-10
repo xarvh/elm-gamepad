@@ -127,8 +127,8 @@
     axis(1, 'w', 's'),
 
     // right stick
-    axis(2, 'RightArrow', 'LeftArrow'),
-    axis(3, 'UpArrow', 'DownArrow'),
+    axis(2, 'ArrowRight', 'ArrowLeft'),
+    axis(3, 'ArrowUp', 'ArrowDown'),
 
     // face buttons
     digitalButton(0, ['x']),
