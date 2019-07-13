@@ -52,7 +52,7 @@ viewDigital args get digital content =
         signal =
             case get args of
                 Mapped signalId ->
-                    viewSignal args signalId value
+                    viewSignal args signalId Nothing
 
                 _ ->
                     div
@@ -78,8 +78,8 @@ viewDigital args get digital content =
         ]
 
 
-viewSignal : ViewGamepadArgs -> SignalId -> Float -> Html GamepadMsg
-viewSignal args id value =
+viewSignal : ViewGamepadArgs -> SignalId -> Maybe Float -> Html GamepadMsg
+viewSignal args id maybeValue =
     let
         color =
             if args.maybeSelectedSignal == Nothing || args.maybeSelectedSignal == Just id then
@@ -90,7 +90,7 @@ viewSignal args id value =
     div
         [ onClick (OnClickSignal id) ]
         [ gauge
-            { maybeIndicator = Just ( value, color )
+            { maybeIndicator = Maybe.map (\value -> ( value, color )) maybeValue
             , color = color
             , center = gaugeText color (Debug.toString id)
             }
@@ -107,14 +107,14 @@ userViewGamepad args =
         [ div
             [ class "dpad"
             ]
-            [ --viewDigital args .dpadUp DpadUp "Up"
-            --, viewDigital args .dpadDown DpadDown "Down"
+            [--viewDigital args .dpadUp DpadUp "Up"
+             --, viewDigital args .dpadDown DpadDown "Down"
             ]
         , div
             [ class "unmapped"
             ]
             [ args.unmappedSignals
-                |> List.map (\( signalId, value ) -> viewSignal args signalId value)
+                |> List.map (\( signalId, value ) -> viewSignal args signalId (Just value))
                 |> div []
             ]
         , node "style" [] [ text css ]
