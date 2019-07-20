@@ -8,19 +8,20 @@ import Html exposing (..)
 import List.Extra
 
 
-type alias Timestamp =
-    Float
+-- API
 
 
-
--- GAMEPAD REMAP API
-
-
-type alias ViewGamepadArgs =
-    { gamepad : Gamepad
-    , unmappedSignals : List ( SignalId, Float )
-    , maybeSelectedSignal : Maybe SignalId
-    }
+type RemappingState
+    = StateConnectionLost
+    | StateManual
+        { maybeSelectedSignal : Maybe SignalId
+        , unmappedSignals : List ( SignalId, Float )
+        , gamepad : Gamepad
+        }
+    | StateAutomaticOngoing
+        { awaitingSignalForDigital : Digital
+        }
+    | StateAutomaticFinished
 
 
 type GamepadMsg
@@ -36,7 +37,21 @@ type InputState
 
 
 
+-- Messages
+
+
+type Msg
+    = OnGamepadMsg GamepadMsg
+    | OnAnimationFrame Blob
+    | OnReset
+
+
+
 -- Model
+
+
+type alias Timestamp =
+    Float
 
 
 type SignalId
@@ -45,15 +60,8 @@ type SignalId
 
 
 type SignalValue
-  = AxisValue Float
-  | ButtonValue Bool
-
-
-
-
-type Mode
-    = Auto
-    | Manual
+    = AxisValue Float
+    | ButtonValue Bool
 
 
 {-| TODO make this opaque
@@ -63,10 +71,10 @@ type alias Model =
     , targets : List Digital
     , blob : Blob
     , mapping : Private.Mapping
-    , mode : Mode
+    , isAuto : Bool
 
     -- Auto mode
-    , lastInactiveAt : Dict Signal Timestamp
+    , lastInactiveAt : Dict String Timestamp
     , lastMappingInsertAt : Timestamp
 
     -- Manual mode
@@ -80,7 +88,7 @@ init index targets =
     , targets = targets
     , blob = Private.emptyBlob
     , mapping = Dict.empty
-    , mode = Auto
+    , isAuto = True
 
     --
     , lastInactiveAt = Dict.empty
@@ -91,19 +99,8 @@ init index targets =
     }
 
 
-reinit : Model -> Model
-reinit model =
-    init model.index model.targets
 
-
-type Msg
-    = OnGamepadMsg GamepadMsg
-    | OnAnimationFrame Blob
-    | OnReset
-
-
-
--- Exposed helpers
+-- API
 
 
 getInputState : Model -> Gamepad -> Digital -> InputState
@@ -120,26 +117,26 @@ getInputState model (Private.Gamepad mapping f1 f2) digital =
 
 
 
--- Non exposed helpers
+-- Mapping
 
 
 originToSignalId : Origin -> SignalId
 originToSignalId (Private.Origin isReversed type_ index) =
     case type_ of
         Private.Axis ->
-            Axis index
+            AxisId index
 
         Private.Button ->
-            Button index
+            ButtonId index
 
 
 signalIdToOrigin : Bool -> SignalId -> Origin
 signalIdToOrigin isReverse signalId =
     case signalId of
-        Axis index ->
+        AxisId index ->
             Private.Origin isReverse Private.Axis index
 
-        Button index ->
+        ButtonId index ->
             Private.Origin isReverse Private.Button index
 
 
@@ -152,20 +149,67 @@ getFirstUnmappedDigital model =
     List.Extra.find isUnmapped model.targets
 
 
-insertPairInMapping : Digital -> SignalId -> Model -> Model
-insertPairInMapping digital signalId model =
-    { model | mapping = Dict.insert (digitalToString digital) (signalIdToOrigin False signalId) model.mapping }
+insertPairInMapping : Digital -> SignalId -> Bool -> Model -> Model
+insertPairInMapping digital signalId isReverse model =
+    let
+        ( currentFrame, _, _ ) =
+            model.blob
+
+        q =
+            Debug.log "adding" ( digital, signalId, isReverse )
+    in
+    { model
+        | mapping = Dict.insert (digitalToString digital) (signalIdToOrigin isReverse signalId) model.mapping
+        , lastMappingInsertAt = currentFrame.timestamp
+    }
 
 
--- Estimates
+
+-- Signal ids
+
+
+signalIdToString : SignalId -> String
+signalIdToString signalId =
+    case signalId of
+        AxisId index ->
+            "a" ++ String.fromInt index
+
+        ButtonId index ->
+            "b" ++ String.fromInt index
 
 
 
-
-signalEstimateState : SignalEstimate -> SignalEstimateState
-signalEstimateState estimate =
+-- Signal values
 
 
+signalValueIsProbablyActive : SignalValue -> Bool
+signalValueIsProbablyActive signalValue =
+    case signalValue of
+        AxisValue value ->
+            abs value > 0.6
+
+        ButtonValue state ->
+            state
+
+
+signalValueIsProbablyInactive : SignalValue -> Bool
+signalValueIsProbablyInactive signalValue =
+    case signalValue of
+        AxisValue value ->
+            abs value < 0.2
+
+        ButtonValue state ->
+            not state
+
+
+signalValueIsReversed : SignalValue -> Bool
+signalValueIsReversed signalValue =
+    case signalValue of
+        AxisValue value ->
+            value < 0
+
+        ButtonValue state ->
+            False
 
 
 
@@ -176,11 +220,15 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         OnAnimationFrame blob ->
-            -- TODO ===========================================================
             { model | blob = blob }
+                |> (if model.isAuto then
+                        updateAuto
+                    else
+                        updateManual
+                   )
 
         OnReset ->
-            reinit model
+            init model.gamepadIndex model.targets
 
         OnGamepadMsg gamepadMsg ->
             case gamepadMsg of
@@ -197,75 +245,83 @@ update msg model =
 
                         Just signalId ->
                             { model | maybeSelectedSignal = Nothing }
-                                |> insertPairInMapping digital signalId
+                                |> insertPairInMapping digital signalId (Debug.todo "isReverse?")
 
 
 
-{-
-   * update lastInactiveAt
-   * add mapping
--}
+-- Manual mode
 
 
-stuff model blob =
+updateManual : Model -> Model
+updateManual model =
+    model
+
+
+
+-- Automatic mode
+
+
+updateAuto : Model -> Model
+updateAuto model =
     let
         ( currentBlobFrame, _, _ ) =
-            blob
+            model.blob
 
         now =
             currentBlobFrame.timestamp
     in
-    case List.Extra.find (\pad -> pad.index == model.gamepadIndex) currentBlobFrame.gamepads of
-        Nothing ->
+    case blobFrameToSignals model.gamepadIndex currentBlobFrame of
+        [] ->
             model
 
-        Just currentGamepadFrame ->
-            --           for any (signal, value) current
-            case estimate value of
-                Inactive ->
-                    { model | lastInactiveAt = Dict.insert ( signal, now ) model.lastInactiveAt }
-
-                Uncertain ->
-                    model
-
-                Active ->
-                    case Dict.get signal model.lastInactiveAt of
-                        Nothing ->
-                            -- It has never been inactive so far
-                            model
-
-                        Just lastInactiveAt ->
-                            if lastInactiveAt <= model.lastMappingInsertAt then
-                                -- it didn't change since we last mapped something, so it's probably not the signal that the user wants
-                                model
-                            else
-                                -- The user changed it, so it must be what they want mapped to the current digital
-                                case getFirstUnmappedDigital model of
-                                    Nothing ->
-                                        model
-
-                                    Just digital ->
-                                        insertPairInMapping digital signalId model
+        signals ->
+            model
+                |> updateLastInactiveTime now signals
+                |> maybeInsertPair signals
 
 
-updateLastInactiveTime : Timestamp -> List ( SignalId, SignalEstimate ) -> Model -> Model
+maybeInsertPair : List ( SignalId, SignalValue ) -> Model -> Model
+maybeInsertPair signals model =
+    let
+        insert unmappedDigital ( signalId, signalValue ) =
+            insertPairInMapping unmappedDigital signalId (signalValueIsReversed signalValue) model
+    in
+    Maybe.map2 insert
+        (getFirstUnmappedDigital model)
+        (List.Extra.find (userWantsToUseThisSignal model) signals)
+        |> Maybe.withDefault model
+
+
+blobFrameToSignals : Int -> BlobFrame -> List ( SignalId, SignalValue )
+blobFrameToSignals gamepadIndex blobFrame =
+    case List.Extra.find (\gamepad -> gamepad.index == gamepadIndex) blobFrame.gamepads of
+        Nothing ->
+            []
+
+        Just frame ->
+            [ Array.indexedMap (\index value -> ( AxisId index, AxisValue value )) frame.axes
+            , Array.indexedMap (\index ( state, value ) -> ( ButtonId index, ButtonValue state )) frame.buttons
+            ]
+                |> List.map Array.toList
+                |> List.concat
+
+
+updateLastInactiveTime : Timestamp -> List ( SignalId, SignalValue ) -> Model -> Model
 updateLastInactiveTime now idsAndEstimates model =
     let
-        maybeUpdateTime ( signalId, signalEstimate ) lastInactiveAt =
-            if signalEstimateState signalEstimate /= Inactive then
-                lastInactiveAt
-            else
+        maybeUpdateTime ( signalId, signalValue ) lastInactiveAt =
+            if signalValueIsProbablyInactive signalValue then
                 Dict.insert (signalIdToString signalId) now lastInactiveAt
+            else
+                lastInactiveAt
     in
     { model | lastInactiveAt = List.foldl maybeUpdateTime model.lastInactiveAt idsAndEstimates }
 
 
-userWantsToUseThisSignal : Model -> ( SignalId, SignalEstimate ) -> Bool
-userWantsToUseThisSignal model ( signalId, signalEstimate ) =
-    if signalEstimateState signalEstimate /= Active then
-        False
-    else
-        case Dict.get signal model.lastInactiveAt of
+userWantsToUseThisSignal : Model -> ( SignalId, SignalValue ) -> Bool
+userWantsToUseThisSignal model ( signalId, signalValue ) =
+    if signalValueIsProbablyActive signalValue then
+        case Dict.get (signalIdToString signalId) model.lastInactiveAt of
             Nothing ->
                 -- It has never been inactive so far
                 False
@@ -273,69 +329,73 @@ userWantsToUseThisSignal model ( signalId, signalEstimate ) =
             Just lastInactiveAt ->
                 -- Has it been released since last time we added
                 lastInactiveAt > model.lastMappingInsertAt
+    else
+        False
 
 
 
 -- View
 
 
-modelToViewGamepadArgs : Model -> ViewGamepadArgs
-modelToViewGamepadArgs model =
+modelToRemappingState : Model -> RemappingState
+modelToRemappingState model =
     let
         ( currentBlobFrame, previousBlobFrame, env ) =
             model.blob
 
-        emptyGamepadFrame =
-            { axes = Array.empty
-            , buttons = Array.empty
-            , id = ""
-            , index = model.gamepadIndex
-            , mapping = ""
-            }
-
         getGamepadFrame blobFrame =
             blobFrame.gamepads
                 |> List.Extra.find (\gamepadFrame -> gamepadFrame.index == model.gamepadIndex)
-                |> Maybe.withDefault emptyGamepadFrame
-
-        currentGamepadFrame =
-            getGamepadFrame currentBlobFrame
-
-        previousGamepadFrame =
-            getGamepadFrame previousBlobFrame
-
-        mappedSignals =
-            model.mapping
-                |> Dict.values
-                |> List.map originToSignalId
-
-        unmappedSignals =
-            [ currentGamepadFrame.buttons
-                |> Array.toList
-                |> List.indexedMap (\index button -> ( Button index, Tuple.second button ))
-            , currentGamepadFrame.axes
-                |> Array.toList
-                |> List.indexedMap (\index value -> ( Axis index, value ))
-            ]
-                |> List.concat
-                |> List.filter (\( s, v ) -> List.all ((/=) s) mappedSignals)
     in
-    { gamepad = Private.Gamepad model.mapping currentGamepadFrame previousGamepadFrame
-    , unmappedSignals = unmappedSignals
-    , maybeSelectedSignal = model.maybeSelectedSignal
-    }
+    case Maybe.map2 Tuple.pair (getGamepadFrame currentBlobFrame) (getGamepadFrame previousBlobFrame) of
+        Nothing ->
+            StateConnectionLost
+
+        Just ( currentGamepadFrame, previousGamepadFrame ) ->
+            if model.isAuto then
+                case getFirstUnmappedDigital model of
+                    Nothing ->
+                        StateAutomaticFinished
+
+                    Just digital ->
+                        StateAutomaticOngoing
+                            { awaitingSignalForDigital = digital
+                            }
+            else
+                StateConnectionLost
 
 
-view : (ViewGamepadArgs -> Html GamepadMsg) -> Model -> List (Html Msg)
-view userViewGamepad model =
-    let
-        args =
-            modelToViewGamepadArgs model
-    in
-    [ args
-        |> userViewGamepad
-        |> Html.map OnGamepadMsg
-    , args
-        |> Debug.toString
-        |> Html.text
-    ]
+
+{-
+               StateManual
+                   { }
+
+         currentGamepadFrame =
+             getGamepadFrame currentBlobFrame
+
+         previousGamepadFrame =
+             getGamepadFrame previousBlobFrame
+
+         mappedSignals =
+             model.mapping
+                 |> Dict.values
+                 |> List.map originToSignalId
+
+         unmappedSignals =
+             [ currentGamepadFrame.buttons
+                 |> Array.toList
+                 |> List.indexedMap (\index button -> ( Button index, Tuple.second button ))
+             , currentGamepadFrame.axes
+                 |> Array.toList
+                 |> List.indexedMap (\index value -> ( Axis index, value ))
+             ]
+                 |> List.concat
+                 |> List.filter (\( s, v ) -> List.all ((/=) s) mappedSignals)
+
+   in
+
+     { gamepad = Private.Gamepad model.mapping currentGamepadFrame previousGamepadFrame
+     , unmappedSignals = unmappedSignals
+     , maybeSelectedSignal = model.maybeSelectedSignal
+     }
+-}

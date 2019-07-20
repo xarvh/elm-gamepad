@@ -5,7 +5,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events
 import Json.Decode as Decode
-import Remap exposing (GamepadMsg(..), InputState(..), SignalId, ViewGamepadArgs)
+import Remap exposing (GamepadMsg(..), InputState(..), SignalId, RemappingState(..))
 import Svg exposing (..)
 import Svg.Attributes as SA exposing (..)
 
@@ -35,7 +35,8 @@ st =
     Html.Attributes.style
 
 
-viewDigital : ViewGamepadArgs -> (ViewGamepadArgs -> InputState) -> Digital -> String -> Html GamepadMsg
+{-
+viewDigital : RemappingState -> (ViewGamepadArgs -> InputState) -> Digital -> String -> Html GamepadMsg
 viewDigital args get digital content =
     let
         color =
@@ -78,7 +79,7 @@ viewDigital args get digital content =
         ]
 
 
-viewSignal : ViewGamepadArgs -> SignalId -> Maybe Float -> Html GamepadMsg
+viewSignal : RemappingState -> SignalId -> Maybe Float -> Html GamepadMsg
 viewSignal args id maybeValue =
     let
         color =
@@ -95,20 +96,37 @@ viewSignal args id maybeValue =
             , center = gaugeText color (Debug.toString id)
             }
         ]
+-}
 
 
-userViewGamepad : ViewGamepadArgs -> Html GamepadMsg
-userViewGamepad args =
+userViewGamepad : RemappingState -> Html GamepadMsg
+userViewGamepad state =
     div
         [ class "gamepad"
 
         --, onClick OnClickBackground
         ]
+        [case state of
+          Remap.StateConnectionLost ->
+            text "Connection Lost"
+          Remap.StateManual stuff ->
+            text "Manual"
+          Remap.StateAutomaticOngoing { awaitingSignalForDigital } ->
+            div
+              []
+              [ text "Ongoing"
+              , div [] [ text (Debug.toString awaitingSignalForDigital )]
+              ]
+          Remap.StateAutomaticFinished ->
+            text "All done!"
+
+        ]
+        {-
         [ div
             [ class "dpad"
             ]
-            [--viewDigital args .dpadUp DpadUp "Up"
-             --, viewDigital args .dpadDown DpadDown "Down"
+            [ viewDigital args .dpadUp DpadUp "Up"
+            , viewDigital args .dpadDown DpadDown "Down"
             ]
         , div
             [ class "unmapped"
@@ -119,6 +137,7 @@ userViewGamepad args =
             ]
         , node "style" [] [ text css ]
         ]
+        -}
 
 
 css : String

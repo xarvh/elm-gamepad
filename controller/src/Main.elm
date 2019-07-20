@@ -4,6 +4,7 @@ import Browser
 import CustomView
 import Gamepad exposing (Digital(..))
 import Gamepad.Advanced exposing (Blob)
+import Html
 import Remap
 
 
@@ -34,7 +35,11 @@ main =
             \model ->
                 { title = "WIP"
                 , body =
-                    Remap.view CustomView.userViewGamepad model
+                    [ model
+                        |> Remap.modelToRemappingState
+                        |> CustomView.userViewGamepad
+                        |> Html.map Remap.OnGamepadMsg
+                    ]
                 }
         , subscriptions =
             \model ->
