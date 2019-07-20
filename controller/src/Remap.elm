@@ -8,28 +8,12 @@ import Html exposing (..)
 import List.Extra
 
 
+type alias Timestamp =
+    Float
+
+
+
 -- GAMEPAD REMAP API
-
-
-type SignalId
-    = Axis Int
-    | Button Int
-
-
-type InputState
-    = Disabled
-    | Unmapped
-    | Mapped SignalId
-
-
-type GamepadMsg
-    = OnClickSignal SignalId
-    | OnClickDigital { isInverted : Bool } Digital
-    | OnCloseMappingTool
-
-
-type Selection
-    = SelectedSignal SignalId
 
 
 type alias ViewGamepadArgs =
@@ -39,6 +23,39 @@ type alias ViewGamepadArgs =
     }
 
 
+type GamepadMsg
+    = OnClickSignal SignalId
+    | OnClickDigital Digital
+    | OnCloseMappingTool
+
+
+type InputState
+    = Disabled
+    | Unmapped
+    | Mapped SignalId
+
+
+
+-- Model
+
+
+type SignalId
+    = AxisId Int
+    | ButtonId Int
+
+
+type SignalValue
+  = AxisValue Float
+  | ButtonValue Bool
+
+
+
+
+type Mode
+    = Auto
+    | Manual
+
+
 {-| TODO make this opaque
 -}
 type alias Model =
@@ -46,6 +63,13 @@ type alias Model =
     , targets : List Digital
     , blob : Blob
     , mapping : Private.Mapping
+    , mode : Mode
+
+    -- Auto mode
+    , lastInactiveAt : Dict Signal Timestamp
+    , lastMappingInsertAt : Timestamp
+
+    -- Manual mode
     , maybeSelectedSignal : Maybe SignalId
     }
 
@@ -56,16 +80,20 @@ init index targets =
     , targets = targets
     , blob = Private.emptyBlob
     , mapping = Dict.empty
+    , mode = Auto
+
+    --
+    , lastInactiveAt = Dict.empty
+    , lastMappingInsertAt = 0
+
+    --
     , maybeSelectedSignal = Nothing
     }
 
 
 reinit : Model -> Model
 reinit model =
-    { model
-        | mapping = Dict.empty
-        , maybeSelectedSignal = Nothing
-    }
+    init model.index model.targets
 
 
 type Msg
@@ -115,6 +143,31 @@ signalIdToOrigin isReverse signalId =
             Private.Origin isReverse Private.Button index
 
 
+getFirstUnmappedDigital : Model -> Maybe Digital
+getFirstUnmappedDigital model =
+    let
+        isUnmapped digital =
+            Dict.get (digitalToString digital) model.mapping == Nothing
+    in
+    List.Extra.find isUnmapped model.targets
+
+
+insertPairInMapping : Digital -> SignalId -> Model -> Model
+insertPairInMapping digital signalId model =
+    { model | mapping = Dict.insert (digitalToString digital) (signalIdToOrigin False signalId) model.mapping }
+
+
+-- Estimates
+
+
+
+
+signalEstimateState : SignalEstimate -> SignalEstimateState
+signalEstimateState estimate =
+
+
+
+
 
 -- Update
 
@@ -123,6 +176,7 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         OnAnimationFrame blob ->
+            -- TODO ===========================================================
             { model | blob = blob }
 
         OnReset ->
@@ -136,16 +190,89 @@ update msg model =
                 OnClickSignal signalId ->
                     { model | maybeSelectedSignal = Just signalId }
 
-                OnClickDigital { isInverted } digital ->
+                OnClickDigital digital ->
                     case model.maybeSelectedSignal of
                         Nothing ->
                             model
 
                         Just signalId ->
-                            { model
-                                | maybeSelectedSignal = Nothing
-                                , mapping = Dict.insert (digitalToString digital) (signalIdToOrigin isInverted signalId) model.mapping
-                            }
+                            { model | maybeSelectedSignal = Nothing }
+                                |> insertPairInMapping digital signalId
+
+
+
+{-
+   * update lastInactiveAt
+   * add mapping
+-}
+
+
+stuff model blob =
+    let
+        ( currentBlobFrame, _, _ ) =
+            blob
+
+        now =
+            currentBlobFrame.timestamp
+    in
+    case List.Extra.find (\pad -> pad.index == model.gamepadIndex) currentBlobFrame.gamepads of
+        Nothing ->
+            model
+
+        Just currentGamepadFrame ->
+            --           for any (signal, value) current
+            case estimate value of
+                Inactive ->
+                    { model | lastInactiveAt = Dict.insert ( signal, now ) model.lastInactiveAt }
+
+                Uncertain ->
+                    model
+
+                Active ->
+                    case Dict.get signal model.lastInactiveAt of
+                        Nothing ->
+                            -- It has never been inactive so far
+                            model
+
+                        Just lastInactiveAt ->
+                            if lastInactiveAt <= model.lastMappingInsertAt then
+                                -- it didn't change since we last mapped something, so it's probably not the signal that the user wants
+                                model
+                            else
+                                -- The user changed it, so it must be what they want mapped to the current digital
+                                case getFirstUnmappedDigital model of
+                                    Nothing ->
+                                        model
+
+                                    Just digital ->
+                                        insertPairInMapping digital signalId model
+
+
+updateLastInactiveTime : Timestamp -> List ( SignalId, SignalEstimate ) -> Model -> Model
+updateLastInactiveTime now idsAndEstimates model =
+    let
+        maybeUpdateTime ( signalId, signalEstimate ) lastInactiveAt =
+            if signalEstimateState signalEstimate /= Inactive then
+                lastInactiveAt
+            else
+                Dict.insert (signalIdToString signalId) now lastInactiveAt
+    in
+    { model | lastInactiveAt = List.foldl maybeUpdateTime model.lastInactiveAt idsAndEstimates }
+
+
+userWantsToUseThisSignal : Model -> ( SignalId, SignalEstimate ) -> Bool
+userWantsToUseThisSignal model ( signalId, signalEstimate ) =
+    if signalEstimateState signalEstimate /= Active then
+        False
+    else
+        case Dict.get signal model.lastInactiveAt of
+            Nothing ->
+                -- It has never been inactive so far
+                False
+
+            Just lastInactiveAt ->
+                -- Has it been released since last time we added
+                lastInactiveAt > model.lastMappingInsertAt
 
 
 
