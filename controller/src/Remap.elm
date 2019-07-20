@@ -50,10 +50,6 @@ type Msg
 -- Model
 
 
-type alias Timestamp =
-    Float
-
-
 type SignalId
     = AxisId Int
     | ButtonId Int
@@ -62,6 +58,11 @@ type SignalId
 type SignalValue
     = AxisValue Float
     | ButtonValue Bool
+
+
+type AcceptanceStatus
+    = WasNeutral
+    | WasNeutralThenActive
 
 
 {-| TODO make this opaque
@@ -74,8 +75,7 @@ type alias Model =
     , isAuto : Bool
 
     -- Auto mode
-    , lastInactiveAt : Dict String Timestamp
-    , lastMappingInsertAt : Timestamp
+    , acceptanceStatusBySignalId : Dict String AcceptanceStatus
 
     -- Manual mode
     , maybeSelectedSignal : Maybe SignalId
@@ -91,8 +91,7 @@ init index targets =
     , isAuto = True
 
     --
-    , lastInactiveAt = Dict.empty
-    , lastMappingInsertAt = 0
+    , acceptanceStatusBySignalId = Dict.empty
 
     --
     , maybeSelectedSignal = Nothing
@@ -158,10 +157,7 @@ insertPairInMapping digital signalId isReverse model =
         q =
             Debug.log "adding" ( digital, signalId, isReverse )
     in
-    { model
-        | mapping = Dict.insert (digitalToString digital) (signalIdToOrigin isReverse signalId) model.mapping
-        , lastMappingInsertAt = currentFrame.timestamp
-    }
+    { model | mapping = Dict.insert (digitalToString digital) (signalIdToOrigin isReverse signalId) model.mapping }
 
 
 
@@ -192,8 +188,8 @@ signalValueIsProbablyActive signalValue =
             state
 
 
-signalValueIsProbablyInactive : SignalValue -> Bool
-signalValueIsProbablyInactive signalValue =
+signalValueIsProbablyNeutral : SignalValue -> Bool
+signalValueIsProbablyNeutral signalValue =
     case signalValue of
         AxisValue value ->
             abs value < 0.2
@@ -263,38 +259,19 @@ updateManual model =
 
 updateAuto : Model -> Model
 updateAuto model =
-    let
-        ( currentBlobFrame, _, _ ) =
+    case getFirstUnmappedDigital model of
+        Nothing ->
+            model
+
+        Just digital ->
             model.blob
-
-        now =
-            currentBlobFrame.timestamp
-    in
-    case blobFrameToSignals model.gamepadIndex currentBlobFrame of
-        [] ->
-            model
-
-        signals ->
-            model
-                |> updateLastInactiveTime now signals
-                |> maybeInsertPair signals
+                |> blobToSignals model.gamepadIndex
+                |> List.foldl (updateAcceptanceStatus digital) model
 
 
-maybeInsertPair : List ( SignalId, SignalValue ) -> Model -> Model
-maybeInsertPair signals model =
-    let
-        insert unmappedDigital ( signalId, signalValue ) =
-            insertPairInMapping unmappedDigital signalId (signalValueIsReversed signalValue) model
-    in
-    Maybe.map2 insert
-        (getFirstUnmappedDigital model)
-        (List.Extra.find (userWantsToUseThisSignal model) signals)
-        |> Maybe.withDefault model
-
-
-blobFrameToSignals : Int -> BlobFrame -> List ( SignalId, SignalValue )
-blobFrameToSignals gamepadIndex blobFrame =
-    case List.Extra.find (\gamepad -> gamepad.index == gamepadIndex) blobFrame.gamepads of
+blobToSignals : Int -> Blob -> List ( SignalId, SignalValue )
+blobToSignals gamepadIndex ( currentBlobFrame, _, _ ) =
+    case List.Extra.find (\gamepad -> gamepad.index == gamepadIndex) currentBlobFrame.gamepads of
         Nothing ->
             []
 
@@ -306,31 +283,34 @@ blobFrameToSignals gamepadIndex blobFrame =
                 |> List.concat
 
 
-updateLastInactiveTime : Timestamp -> List ( SignalId, SignalValue ) -> Model -> Model
-updateLastInactiveTime now idsAndEstimates model =
+updateAcceptanceStatus : Digital -> ( SignalId, SignalValue ) -> Model -> Model
+updateAcceptanceStatus targetDigital ( signalId, signalValue ) model =
     let
-        maybeUpdateTime ( signalId, signalValue ) lastInactiveAt =
-            if signalValueIsProbablyInactive signalValue then
-                Dict.insert (signalIdToString signalId) now lastInactiveAt
-            else
-                lastInactiveAt
+        key =
+            signalIdToString signalId
     in
-    { model | lastInactiveAt = List.foldl maybeUpdateTime model.lastInactiveAt idsAndEstimates }
+    case Dict.get key model.acceptanceStatusBySignalId of
+        Nothing ->
+            -- Step 1: signal is initially neutral
+            if signalValueIsProbablyNeutral signalValue then
+                { model | acceptanceStatusBySignalId = Dict.insert key WasNeutral model.acceptanceStatusBySignalId }
+            else
+                model
 
+        Just WasNeutral ->
+            -- Step 2: signal is activated by the user
+            if signalValueIsProbablyActive signalValue then
+                { model | acceptanceStatusBySignalId = Dict.insert key WasNeutralThenActive model.acceptanceStatusBySignalId }
+            else
+                model
 
-userWantsToUseThisSignal : Model -> ( SignalId, SignalValue ) -> Bool
-userWantsToUseThisSignal model ( signalId, signalValue ) =
-    if signalValueIsProbablyActive signalValue then
-        case Dict.get (signalIdToString signalId) model.lastInactiveAt of
-            Nothing ->
-                -- It has never been inactive so far
-                False
-
-            Just lastInactiveAt ->
-                -- Has it been released since last time we added
-                lastInactiveAt > model.lastMappingInsertAt
-    else
-        False
+        Just WasNeutralThenActive ->
+            -- Step 3: user releases the control again
+            if signalValueIsProbablyNeutral signalValue then
+                { model | acceptanceStatusBySignalId = Dict.empty }
+                    |> insertPairInMapping targetDigital signalId (signalValueIsReversed signalValue)
+            else
+                model
 
 
 
