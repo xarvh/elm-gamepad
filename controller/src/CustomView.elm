@@ -114,7 +114,7 @@ userViewGamepad state =
           Remap.StateAutomaticOngoing { awaitingSignalForDigital } ->
             div
               []
-              [ text "Ongoing"
+              [ text "Remapping. Please press and release:"
               , div [] [ text (Debug.toString awaitingSignalForDigital )]
               ]
           Remap.StateAutomaticFinished ->

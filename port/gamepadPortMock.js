@@ -1,10 +1,12 @@
 (function mockGetGamepads() {
 
 
-  // Override the system function, yay JavaScript!
-  navigator.getGamepads = function getGamepadsMock() {
-    updateMockGamepads();
-    return mockGamepads;
+  function doOverride() {
+    // Override the system function, yay JavaScript!
+    navigator.getGamepads = function getGamepadsMock() {
+      updateMockGamepads();
+      return mockGamepads;
+    };
   };
 
 
@@ -33,6 +35,8 @@
     const n = +key;
 
     if (n >= 1 && n <= 4) {
+      doOverride();
+
       // Select gamepad
       const index = n - 1;
       mockGamepads[index] = mockGamepads[index] || initGamepad(index);

@@ -13,8 +13,12 @@ port onBlob : (Blob -> msg) -> Sub msg
 
 targets : List Digital
 targets =
-    [ DpadUp
-    , DpadDown
+    [ LeftStickUp
+    , LeftStickDown
+    , LeftStickLeft
+    , LeftStickRight
+    , A
+    , B
     ]
 
 

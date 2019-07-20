@@ -62,7 +62,7 @@ type SignalValue
 
 type AcceptanceStatus
     = WasNeutral
-    | WasNeutralThenActive
+    | WasNeutralThenActive Bool
 
 
 {-| TODO make this opaque
@@ -130,13 +130,13 @@ originToSignalId (Private.Origin isReversed type_ index) =
 
 
 signalIdToOrigin : Bool -> SignalId -> Origin
-signalIdToOrigin isReverse signalId =
+signalIdToOrigin isReversed signalId =
     case signalId of
         AxisId index ->
-            Private.Origin isReverse Private.Axis index
+            Private.Origin isReversed Private.Axis index
 
         ButtonId index ->
-            Private.Origin isReverse Private.Button index
+            Private.Origin isReversed Private.Button index
 
 
 getFirstUnmappedDigital : Model -> Maybe Digital
@@ -149,15 +149,15 @@ getFirstUnmappedDigital model =
 
 
 insertPairInMapping : Digital -> SignalId -> Bool -> Model -> Model
-insertPairInMapping digital signalId isReverse model =
+insertPairInMapping digital signalId isReversed model =
     let
         ( currentFrame, _, _ ) =
             model.blob
 
         q =
-            Debug.log "adding" ( digital, signalId, isReverse )
+            Debug.log "adding" ( digital, signalId, isReversed )
     in
-    { model | mapping = Dict.insert (digitalToString digital) (signalIdToOrigin isReverse signalId) model.mapping }
+    { model | mapping = Dict.insert (digitalToString digital) (signalIdToOrigin isReversed signalId) model.mapping }
 
 
 
@@ -241,7 +241,7 @@ update msg model =
 
                         Just signalId ->
                             { model | maybeSelectedSignal = Nothing }
-                                |> insertPairInMapping digital signalId (Debug.todo "isReverse?")
+                                |> insertPairInMapping digital signalId (Debug.todo "isReversed?")
 
 
 
@@ -300,17 +300,24 @@ updateAcceptanceStatus targetDigital ( signalId, signalValue ) model =
         Just WasNeutral ->
             -- Step 2: signal is activated by the user
             if signalValueIsProbablyActive signalValue then
-                { model | acceptanceStatusBySignalId = Dict.insert key WasNeutralThenActive model.acceptanceStatusBySignalId }
+                { model | acceptanceStatusBySignalId = Dict.insert key (WasNeutralThenActive (signalValueIsReversed signalValue)) model.acceptanceStatusBySignalId }
             else
                 model
 
-        Just WasNeutralThenActive ->
+        Just (WasNeutralThenActive isReversed) ->
             -- Step 3: user releases the control again
-            if signalValueIsProbablyNeutral signalValue then
+            if signalValueIsProbablyNeutral signalValue && signalIsNotMapped signalId isReversed model then
                 { model | acceptanceStatusBySignalId = Dict.empty }
-                    |> insertPairInMapping targetDigital signalId (signalValueIsReversed signalValue)
+                    |> insertPairInMapping targetDigital signalId isReversed
             else
                 model
+
+
+signalIsNotMapped : SignalId -> Bool -> Model -> Bool
+signalIsNotMapped signalId isReversed model =
+    model.mapping
+        |> Dict.values
+        |> List.all ((/=) (signalIdToOrigin isReversed signalId))
 
 
 
