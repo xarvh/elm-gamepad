@@ -328,7 +328,7 @@ viewGamepad gamepad =
         , [ "Left Stick postion: " ++ recordToString (Gamepad.leftStickPosition gamepad)
           , "Right Stick position: " ++ recordToString (Gamepad.rightStickPosition gamepad)
           , "Dpad position: " ++ dpadToString (Gamepad.dpadPosition gamepad)
-          , "Left Trigger (analog)) :" ++ String.fromFloat (Gamepad.value gamepad Gamepad.RightTriggerAnalog)
+          , "Left Trigger (analog)) :" ++ String.fromFloat (Gamepad.value gamepad Gamepad.LeftTriggerAnalog)
           , "Right Trigger (analog)) :" ++ String.fromFloat (Gamepad.value gamepad Gamepad.RightTriggerAnalog)
           ]
             |> List.map viewAnalog
